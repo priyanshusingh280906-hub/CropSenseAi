@@ -1,0 +1,1881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CropSense AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   ROOT & RESET
+═══════════════════════════════════════════════ */
+:root {
+  --green: #1a7a3c;
+  --green-mid: #2da05a;
+  --green-light: #4ade80;
+  --green-xlight: #bbf7d0;
+  --dark-btn: #0d2e18;
+  --text-body: #1a3525;
+  --text-muted: rgba(20,55,35,0.5);
+  --text-faint: rgba(20,55,35,0.35);
+  --glass-white: rgba(255,255,255,0.58);
+  --glass-white-strong: rgba(255,255,255,0.78);
+  --glass-dark: rgba(13,46,24,0.82);
+  --glass-dark-mid: rgba(13,46,24,0.68);
+  --border-light: rgba(255,255,255,0.75);
+  --border-mid: rgba(255,255,255,0.5);
+  --border-dark: rgba(13,46,24,0.12);
+  --shadow-tile: 0 4px 32px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  --shadow-float: 0 16px 48px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-deep: 0 32px 80px rgba(0,0,0,0.18);
+  --r: 22px;
+  --r-sm: 14px;
+  --r-xs: 10px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #e8f5ee;
+  color: var(--text-body);
+}
+
+/* ═══════════════════════════════════════════════
+   FARM BACKGROUND — matches reference image
+═══════════════════════════════════════════════ */
+.farm-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* SVG-drawn farm scene matching reference */
+.farm-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(0px) brightness(1.05) saturate(1.1);
+}
+
+/* Overlay that creates the frosted glass look over the farm */
+.farm-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 80% 60% at 65% 30%, rgba(180,230,180,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 100% 80% at 10% 80%, rgba(140,210,160,0.25) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(240,255,245,0.15) 0%, rgba(200,245,220,0.1) 100%);
+}
+
+/* Farm SVG scene */
+.farm-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ═══════════════════════════════════════════════
+   WRAPPER
+═══════════════════════════════════════════════ */
+.app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════
+   NAV — matches reference: white glass bar
+═══════════════════════════════════════════════ */
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  height: 64px;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border-bottom: 1px solid rgba(255,255,255,0.8);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04), var(--shadow-tile);
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.logo-mark {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  box-shadow: 0 3px 12px rgba(74,222,128,0.38);
+}
+
+.logo-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-body);
+  letter-spacing: -0.01em;
+}
+
+.logo-text span { color: var(--green-mid); }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  list-style: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.nav-links a {
+  display: block;
+  padding: 7px 16px;
+  border-radius: 50px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.nav-links a:hover { color: var(--text-body); background: rgba(0,0,0,0.04); }
+.nav-links a.active { color: var(--green); background: rgba(74,222,128,0.14); font-weight: 600; }
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.nav-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-body);
+  transition: all 0.2s;
+  position: relative;
+}
+
+.nav-icon-btn:hover { background: rgba(0,0,0,0.09); }
+
+.notif-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  background: #ef4444;
+  border-radius: 50%;
+  border: 1.5px solid white;
+}
+
+/* Reference image CTA button — dark rounded pill */
+.nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  background: var(--dark-btn);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(13,46,24,0.32);
+  transition: all 0.22s;
+  white-space: nowrap;
+}
+
+.nav-cta:hover { background: #1a3d22; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(13,46,24,0.4); }
+
+/* ═══════════════════════════════════════════════
+   PAGE SYSTEM
+═══════════════════════════════════════════════ */
+.page { display: none; }
+.page.active { display: block; animation: fadeUp 0.4s ease both; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════
+   BENTO GRID
+═══════════════════════════════════════════════ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+  padding: 22px 32px 36px;
+  max-width: 1480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════
+   GLASS TILE BASE
+═══════════════════════════════════════════════ */
+.tile {
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), box-shadow 0.3s ease;
+  animation: tileReveal 0.55s ease both;
+}
+
+.tile:hover { transform: translateY(-3px); }
+
+@keyframes tileReveal {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* Light glass tile — matches reference */
+.g-light {
+  background: var(--glass-white);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border: 1.5px solid var(--border-light);
+  box-shadow: var(--shadow-tile), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+.g-light:hover { box-shadow: var(--shadow-float), inset 0 1px 0 rgba(255,255,255,0.9); }
+
+/* White strong */
+.g-white {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border: 1.5px solid rgba(255,255,255,0.95);
+  box-shadow: var(--shadow-tile), inset 0 1px 0 white;
+}
+
+/* Dark glass tile — matches reference dark cards */
+.g-dark {
+  background: var(--glass-dark);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  box-shadow: var(--shadow-tile);
+}
+
+.g-dark:hover { box-shadow: var(--shadow-float); }
+
+/* Green gradient dark */
+.g-green-dark {
+  background: linear-gradient(140deg, rgba(26,90,50,0.88) 0%, rgba(13,46,24,0.92) 100%);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  border: 1.5px solid rgba(255,255,255,0.14);
+  box-shadow: var(--shadow-tile);
+}
+
+/* delay cascade */
+.tile:nth-child(1){animation-delay:.03s}.tile:nth-child(2){animation-delay:.08s}
+.tile:nth-child(3){animation-delay:.13s}.tile:nth-child(4){animation-delay:.18s}
+.tile:nth-child(5){animation-delay:.23s}.tile:nth-child(6){animation-delay:.28s}
+.tile:nth-child(7){animation-delay:.33s}.tile:nth-child(8){animation-delay:.38s}
+.tile:nth-child(9){animation-delay:.43s}.tile:nth-child(10){animation-delay:.48s}
+
+/* ═══════════════════════════════════════════════
+   SHARED COMPONENTS
+═══════════════════════════════════════════════ */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 50px;
+}
+
+.tag-organic { background: rgba(74,222,128,0.18); color: #15803d; border: 1px solid rgba(74,222,128,0.35); }
+.tag-chemical { background: rgba(26,90,50,0.1); color: var(--green); border: 1px solid rgba(26,90,50,0.2); }
+.tag-danger { background: rgba(239,68,68,0.12); color: #dc2626; border: 1px solid rgba(239,68,68,0.25); }
+.tag-amber { background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.25); }
+.tag-info { background: rgba(59,130,246,0.12); color: #2563eb; border: 1px solid rgba(59,130,246,0.25); }
+.tag-dark { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.15); }
+
+.loc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: auto;
+  max-width: fit-content;
+}
+
+.loc-chip-light { background: rgba(26,90,50,0.08); color: var(--green); border: 1px solid rgba(26,90,50,0.16); }
+.loc-chip-light:hover { background: rgba(26,90,50,0.16); }
+.loc-chip-dark { background: rgba(255,255,255,0.1); color: #86efac; border: 1px solid rgba(255,255,255,0.18); }
+.loc-chip-dark:hover { background: rgba(255,255,255,0.17); }
+
+.pulse-ring {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 0 rgba(74,222,128,0.6);
+  animation: pulseRing 2s ease-in-out infinite;
+}
+
+@keyframes pulseRing {
+  0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+}
+
+.stat-bar { width:100%; height:5px; background:rgba(13,46,24,0.07); border-radius:3px; margin-top:5px; overflow:hidden; }
+.stat-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#16a34a,#4ade80); animation:fillGrow 1.3s cubic-bezier(.25,1,.5,1) both; }
+.stat-fill.amber { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
+@keyframes fillGrow { from{width:0!important} }
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(24px);
+  border: 1.5px solid rgba(255,255,255,0.9);
+  border-left: 4px solid #4ade80;
+  color: var(--text-body);
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: var(--shadow-float);
+  transform: translateY(70px);
+  opacity: 0;
+  transition: all 0.32s cubic-bezier(.34,1.56,.64,1);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 340px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ═══════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════ */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s;
+}
+.modal-bg.open { opacity: 1; pointer-events: all; }
+
+.modal-box {
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(40px);
+  border: 1.5px solid rgba(255,255,255,0.95);
+  border-radius: 28px;
+  padding: 34px;
+  width: 520px;
+  max-width: 92vw;
+  box-shadow: var(--shadow-deep);
+  transform: translateY(20px) scale(0.97);
+  transition: all 0.32s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.modal-bg.open .modal-box { transform: translateY(0) scale(1); }
+
+.modal-x {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 30px; height: 30px;
+  background: rgba(0,0,0,0.06);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.modal-x:hover { background: rgba(0,0,0,0.12); }
+
+.modal-title { font-size: 1.3rem; font-weight: 800; color: var(--text-body); margin-bottom: 5px; }
+.modal-sub { font-size: 0.79rem; color: var(--text-muted); margin-bottom: 22px; }
+.modal-section-title { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.modal-card {
+  background: rgba(0,0,0,0.03);
+  border: 1.5px solid rgba(0,0,0,0.06);
+  border-radius: 16px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.modal-card:hover { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.35); }
+.modal-card-icon { font-size: 1.4rem; margin-bottom: 7px; }
+.modal-card h4 { font-size: 0.86rem; font-weight: 700; color: var(--text-body); }
+.modal-card p { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.modal-action-btn {
+  width: 100%;
+  padding: 13px;
+  background: var(--dark-btn);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s;
+  box-shadow: 0 4px 16px rgba(13,46,24,0.28);
+}
+.modal-action-btn:hover { background: #1a3d22; transform: translateY(-1px); }
+
+/* ═══════════════════════════════════════════════
+   PAGE: DASHBOARD
+═══════════════════════════════════════════════ */
+
+/* HERO TILE — the big farm photo tile from reference */
+.hero-tile {
+  grid-column: 1 / 9;
+  min-height: 300px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+/* Farm photo background for hero */
+.hero-photo {
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(to right, rgba(0,0,0,0.48) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.05) 100%),
+    linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 100%),
+    /* Simulated farm with SVG-like gradient */
+    radial-gradient(ellipse 60% 50% at 75% 35%, rgba(255,220,80,0.55) 0%, rgba(255,180,40,0.15) 35%, transparent 60%),
+    linear-gradient(175deg, #7dc97a 0%, #4a9e52 20%, #2d7a38 40%, #1e5a28 65%, #143d1c 100%);
+  border-radius: var(--r);
+}
+
+/* Tomato plant SVG overlay */
+.hero-plant {
+  position: absolute;
+  right: 60px;
+  bottom: 0;
+  top: 0;
+  width: 260px;
+  pointer-events: none;
+}
+
+/* Sun burst in hero */
+.hero-sun {
+  position: absolute;
+  right: 18%;
+  top: 8%;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(255,235,120,0.75) 0%, rgba(255,200,60,0.35) 35%, rgba(255,170,20,0.1) 60%, transparent 75%);
+  border-radius: 50%;
+  filter: blur(6px);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  padding: 32px 36px;
+  width: 100%;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 50px;
+  padding: 5px 13px;
+  color: rgba(255,255,255,0.9);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 14px;
+  backdrop-filter: blur(12px);
+}
+
+/* "95%" big text — from reference */
+.conf-num {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 5.2rem;
+  font-weight: 800;
+  color: white;
+  line-height: 0.9;
+  letter-spacing: -4px;
+  text-shadow: 0 2px 40px rgba(0,0,0,0.3);
+  display: inline;
+}
+
+.conf-suffix {
+  font-size: 1rem;
+  font-weight: 400;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0;
+  vertical-align: super;
+  margin-left: 4px;
+}
+
+.conf-label {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: rgba(255,255,255,0.7);
+  margin-left: 5px;
+  vertical-align: super;
+  letter-spacing: 0;
+}
+
+/* "Early Blight in Tomatoes" */
+.disease-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: white;
+  margin: 6px 0 22px;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.25);
+  letter-spacing: -0.02em;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: rgba(255,255,255,0.18);
+  border: 1.5px solid rgba(255,255,255,0.38);
+  color: white;
+  border-radius: 50px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition: all 0.25s;
+}
+.hero-cta:hover { background: rgba(255,255,255,0.3); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+
+/* Floating scan data card on hero */
+.scan-card {
+  position: absolute;
+  right: 24px;
+  top: 20px;
+  background: rgba(255,255,255,0.22);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 16px;
+  padding: 14px 18px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  min-width: 158px;
+  z-index: 3;
+}
+
+.scan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.scan-lbl { font-size: 0.67rem; color: rgba(255,255,255,0.62); }
+.scan-val { font-size: 0.76rem; font-weight: 700; color: white; }
+.scan-val.g { color: #86efac; }
+.scan-val.a { color: #fcd34d; }
+.scan-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 5px 0; }
+
+/* Blight zone marker */
+.blight-ring {
+  position: absolute;
+  right: 192px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 76px;
+  height: 76px;
+  border: 2px dashed rgba(255,220,50,0.65);
+  border-radius: 50%;
+  animation: blightPulse 3s ease-in-out infinite;
+  z-index: 3;
+}
+@keyframes blightPulse {
+  0%,100% { opacity:0.8; transform:translateY(-50%) scale(1); }
+  50% { opacity:0.35; transform:translateY(-50%) scale(1.1); }
+}
+.blight-label {
+  position: absolute;
+  right: 168px;
+  top: 28%;
+  background: rgba(251,191,36,0.92);
+  color: #431a00;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 50px;
+  letter-spacing: 0.06em;
+  z-index: 3;
+}
+
+/* ── RETAILER / PIN TILE ── */
+.pin-tile {
+  grid-column: 9 / 13;
+  background: var(--glass-white);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border: 1.5px solid var(--border-light);
+  box-shadow: var(--shadow-tile), inset 0 1px 0 rgba(255,255,255,0.9);
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 22px 16px 16px;
+  border-radius: var(--r);
+}
+
+.big-pin-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  margin-bottom: 4px;
+}
+
+.pin-wave {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(26,122,60,0.22);
+  animation: waveOut 2.8s ease-out infinite;
+}
+.pin-wave:nth-child(1) { width:58px;height:58px; }
+.pin-wave:nth-child(2) { width:76px;height:76px; animation-delay:0.5s; }
+.pin-wave:nth-child(3) { width:96px;height:96px; animation-delay:1s; border-color: rgba(26,122,60,0.12); }
+
+@keyframes waveOut {
+  0% { transform: scale(0.7); opacity:1; }
+  100% { transform: scale(1.4); opacity:0; }
+}
+
+.pin-icon-svg {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 50px;
+}
+
+.pin-title { font-size: 0.9rem; font-weight: 700; color: var(--text-body); text-align:center; margin-bottom:2px; }
+.pin-sub { font-size: 0.72rem; color: var(--text-muted); text-align:center; margin-bottom:14px; }
+
+.retailer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  width: 100%;
+}
+
+.retailer-card {
+  background: rgba(255,255,255,0.6);
+  border: 1.5px solid rgba(255,255,255,0.8);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.retailer-card:hover { background: rgba(255,255,255,0.85); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.rc-name { font-size: 0.71rem; font-weight: 700; color: var(--text-body); display:block; }
+.rc-dist { font-size: 0.63rem; color: var(--green); font-weight: 600; margin-top:1px; }
+
+/* ── SECTION LABEL ── */
+.section-lbl {
+  grid-column: 1/13;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-body);
+  letter-spacing: -0.02em;
+  padding: 4px 0 0;
+  animation: fadeUp 0.4s ease both 0.1s;
+}
+.section-lbl span { color: var(--green); }
+
+/* ── TREATMENT TILES ── */
+.tile-mancozeb {
+  grid-column: 1/5;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 210px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Mancozeb has a subtle grid pattern like the reference */
+.tile-mancozeb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(13,46,24,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13,46,24,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+.tile-neem {
+  grid-column: 5/9;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 210px;
+  position: relative;
+  overflow: hidden;
+}
+
+.neem-glow {
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(74,222,128,0.18) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Neem bottle — matches reference image */
+.neem-bottle-wrap {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  width: 64px;
+}
+
+.tile-stats {
+  grid-column: 9/13;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 210px;
+}
+
+.pname { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.pname-l { color: var(--text-body); }
+.pname-d { color: white; }
+.ptype-l { font-size: 0.78rem; color: var(--text-muted); }
+.ptype-d { font-size: 0.78rem; color: rgba(255,255,255,0.52); }
+.pdesc-l { font-size: 0.76rem; color: var(--text-muted); line-height: 1.55; }
+.pdesc-d { font-size: 0.76rem; color: rgba(255,255,255,0.5); line-height: 1.55; position:relative; z-index:1; }
+
+.stat-title { font-size: 0.88rem; font-weight: 700; color: var(--text-body); }
+.stat-row { display:flex; align-items:center; justify-content:space-between; padding-bottom:9px; border-bottom:1px solid rgba(13,46,24,0.06); }
+.stat-row:last-child { border-bottom:none; padding-bottom:0; }
+.stat-lbl { font-size: 0.73rem; color: var(--text-muted); }
+.stat-val { font-size: 0.9rem; font-weight: 700; color: var(--text-body); font-family:'Plus Jakarta Sans',sans-serif; }
+
+/* ── MAP TILE ── */
+.tile-map {
+  grid-column: 1/7;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 195px;
+}
+
+.map-title { font-size: 0.9rem; font-weight: 700; color: var(--text-body); display:flex; align-items:center; gap:8px; }
+.map-canvas { flex:1; border-radius: var(--r-sm); background: rgba(255,255,255,0.4); border: 1px solid rgba(13,46,24,0.08); position:relative; overflow:hidden; min-height:105px; }
+.map-grid-h { position:absolute; width:100%; height:1px; background:rgba(13,46,24,0.05); }
+.map-grid-v { position:absolute; width:1px; height:100%; background:rgba(13,46,24,0.05); }
+.map-pin { position:absolute; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; transition:transform .2s; }
+.map-pin:hover { transform:scale(1.15); }
+.map-dot { width:12px; height:12px; border-radius:50%; border:2.5px solid white; box-shadow:0 2px 8px rgba(0,0,0,0.15); animation:dotPulse 2.5s ease-in-out infinite; }
+.map-dot.green { background:#22c55e; box-shadow:0 0 10px rgba(34,197,94,0.5); }
+.map-dot.amber { background:#f59e0b; box-shadow:0 0 10px rgba(245,158,11,0.5); }
+@keyframes dotPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(34,197,94,0.5); }
+  50% { box-shadow:0 0 0 6px rgba(34,197,94,0); }
+}
+.map-tip { background:var(--dark-btn); color:white; font-size:0.58rem; padding:3px 7px; border-radius:6px; white-space:nowrap; font-weight:600; }
+.you-pin { position:absolute; width:13px; height:13px; background:white; border:3px solid var(--green); border-radius:50%; box-shadow:0 2px 8px rgba(26,122,60,0.4); transform:translate(-50%,-50%); }
+.you-lbl { position:absolute; font-size:0.56rem; color:var(--text-muted); transform:translateX(-50%); white-space:nowrap; }
+.map-legend { display:flex; gap:12px; }
+.leg { display:flex; align-items:center; gap:5px; font-size:0.69rem; color:var(--text-muted); }
+.leg-dot { width:7px; height:7px; border-radius:50%; }
+
+/* ── ORGANIC TILE ── */
+.tile-organic {
+  grid-column: 7/13;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 195px;
+  position: relative;
+  overflow: hidden;
+}
+.tile-organic::after {
+  content:'';
+  position:absolute;
+  bottom:-50px; left:-50px;
+  width:220px; height:220px;
+  background: radial-gradient(circle, rgba(74,222,128,0.12) 0%, transparent 70%);
+  pointer-events:none;
+}
+.organic-hdr { font-size:0.9rem; font-weight:700; color:white; }
+.org-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+.org-card {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-sm);
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.22s;
+}
+.org-card:hover { background:rgba(255,255,255,0.14); border-color:rgba(74,222,128,0.35); transform:translateY(-2px); }
+.org-icon { font-size:1.5rem; margin-bottom:4px; }
+.org-name { font-size:0.68rem; font-weight:700; color:rgba(255,255,255,0.85); }
+.org-detail { font-size:0.59rem; color:rgba(255,255,255,0.4); margin-top:2px; }
+.org-eff { margin-top:5px; height:3px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden; }
+.org-eff-fill { height:100%; background:linear-gradient(90deg,#4ade80,#86efac); border-radius:2px; }
+
+/* ── BOTTOM ROW ── */
+.tile-scan-new {
+  grid-column: 1/5;
+  background: linear-gradient(140deg, rgba(22,100,52,0.75) 0%, rgba(26,90,50,0.6) 100%);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  box-shadow: var(--shadow-tile);
+  border-radius: var(--r);
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 90px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.tile-scan-new:hover { background:linear-gradient(140deg,rgba(22,100,52,0.88),rgba(26,90,50,0.75)); }
+.tile-scan-new h3 { font-size:0.96rem; font-weight:700; color:white; }
+.tile-scan-new p { font-size:0.72rem; color:rgba(255,255,255,0.58); margin-top:3px; }
+.scan-icon-circle { width:46px; height:46px; background:rgba(255,255,255,0.18); border:1.5px solid rgba(255,255,255,0.28); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.25rem; flex-shrink:0; }
+
+.tile-alert {
+  grid-column: 5/9;
+  background: rgba(255,245,215,0.72);
+  border: 1.5px solid rgba(245,158,11,0.3);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  box-shadow: var(--shadow-tile);
+  border-radius: var(--r);
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 90px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tile-alert:hover { background:rgba(255,245,215,0.88); }
+.alert-icon { font-size:1.9rem; flex-shrink:0; }
+.alert-title { font-size:0.88rem; font-weight:700; color:#92400e; }
+.alert-body { font-size:0.72rem; color:rgba(120,53,15,0.7); margin-top:3px; line-height:1.45; }
+
+.tile-weather {
+  grid-column: 9/13;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 90px;
+  cursor: pointer;
+}
+.weather-temp { font-size: 2.2rem; font-weight: 800; color: var(--text-body); line-height:1; }
+.weather-info h4 { font-size:0.8rem; font-weight:600; color:var(--text-body); }
+.weather-info p { font-size:0.7rem; color:var(--text-muted); margin-top:2px; }
+.weather-emoji { font-size:2.3rem; }
+
+/* ═══════════════════════════════════════════════
+   PAGE: DIAGNOSE
+═══════════════════════════════════════════════ */
+.diag-upload {
+  grid-column: 1/8;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.diag-side { grid-column: 8/13; display:flex; flex-direction:column; gap:14px; }
+.diag-result { padding:24px; display:flex; flex-direction:column; gap:14px; border-radius:var(--r); }
+.diag-history { grid-column:1/13; padding:24px; display:flex; flex-direction:column; gap:14px; border-radius:var(--r); }
+
+.upload-drop {
+  border: 2px dashed rgba(26,122,60,0.3);
+  border-radius: var(--r-sm);
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+  background: rgba(74,222,128,0.04);
+}
+.upload-drop:hover { border-color: rgba(26,122,60,0.55); background: rgba(74,222,128,0.08); }
+.upload-drop h3 { font-size:1rem; font-weight:700; color:var(--text-body); margin-bottom:5px; }
+.upload-drop p { font-size:0.76rem; color:var(--text-muted); line-height:1.5; }
+
+.crop-chips { display:grid; grid-template-columns:repeat(6,1fr); gap:7px; }
+.crop-chip {
+  padding:9px 4px;
+  border:1.5px solid rgba(13,46,24,0.12);
+  border-radius:12px;
+  background:rgba(255,255,255,0.6);
+  font-size:0.72rem;
+  font-weight:600;
+  color:var(--text-body);
+  cursor:pointer;
+  text-align:center;
+  transition:all .2s;
+}
+.crop-chip:hover, .crop-chip.sel { background:var(--dark-btn); color:white; border-color:var(--dark-btn); }
+
+.run-btn {
+  width:100%;
+  padding:14px;
+  background: var(--dark-btn);
+  color:white;
+  border:none;
+  border-radius:50px;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:0.9rem;
+  font-weight:600;
+  cursor:pointer;
+  transition:all .25s;
+  box-shadow: 0 4px 16px rgba(13,46,24,0.28);
+}
+.run-btn:hover { background:#1a3d22; transform:translateY(-1px); }
+
+.hist-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:11px 0;
+  border-bottom:1px solid rgba(13,46,24,0.06);
+}
+.hist-row:last-child { border-bottom:none; }
+.hist-crop { font-size:0.88rem; font-weight:700; color:var(--text-body); }
+.hist-disease { font-size:0.74rem; color:var(--text-muted); margin-top:2px; }
+.hist-conf { font-size:0.88rem; font-weight:800; color:var(--green); font-family:'Plus Jakarta Sans',sans-serif; }
+.hist-date { font-size:0.66rem; color:var(--text-faint); }
+.hist-btn { padding:6px 14px; border-radius:50px; background:rgba(26,90,50,0.08); border:1.5px solid rgba(26,90,50,0.18); color:var(--green); font-size:0.71rem; font-weight:600; cursor:pointer; transition:all .2s; }
+.hist-btn:hover { background:var(--dark-btn); color:white; border-color:var(--dark-btn); }
+
+/* ═══════════════════════════════════════════════
+   PAGE: CROP LIBRARY
+═══════════════════════════════════════════════ */
+.lib-search-bar {
+  grid-column:1/13;
+  padding:18px 24px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  border-radius:var(--r);
+}
+.lib-input {
+  flex:1;
+  border:none;
+  background:transparent;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:0.96rem;
+  color:var(--text-body);
+  outline:none;
+}
+.lib-input::placeholder { color:var(--text-faint); }
+.lib-filters { display:flex; gap:6px; }
+.lib-filter {
+  padding:6px 16px;
+  border-radius:50px;
+  border:1.5px solid rgba(13,46,24,0.12);
+  background:rgba(255,255,255,0.5);
+  font-size:0.76rem;
+  font-weight:600;
+  color:var(--text-muted);
+  cursor:pointer;
+  transition:all .2s;
+}
+.lib-filter:hover,.lib-filter.on { background:var(--dark-btn); color:white; border-color:var(--dark-btn); }
+
+#lib-grid {
+  grid-column:1/13;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+}
+
+.crop-card {
+  background: var(--glass-white);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border:1.5px solid var(--border-light);
+  box-shadow:var(--shadow-tile), inset 0 1px 0 rgba(255,255,255,0.9);
+  border-radius: var(--r);
+  overflow:hidden;
+  cursor:pointer;
+  transition:all .28s cubic-bezier(.34,1.56,.64,1);
+  animation:tileReveal .5s ease both;
+}
+.crop-card:hover { transform:translateY(-5px); box-shadow:var(--shadow-float), inset 0 1px 0 rgba(255,255,255,0.9); }
+.crop-card-img { height:115px; display:flex; align-items:center; justify-content:center; font-size:3.6rem; }
+.crop-card-body { padding:15px; }
+.crop-card-name { font-size:0.96rem; font-weight:800; color:var(--text-body); margin-bottom:3px; }
+.crop-card-sci { font-size:0.69rem; color:var(--text-muted); font-style:italic; margin-bottom:9px; }
+.crop-card-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.crop-tag { padding:3px 9px; border-radius:50px; font-size:0.6rem; font-weight:700; background:rgba(26,90,50,0.08); color:var(--green); border:1px solid rgba(26,90,50,0.16); }
+.crop-tag.d { background:rgba(239,68,68,0.08); color:#dc2626; border-color:rgba(239,68,68,0.2); }
+.risk-line { display:flex; align-items:center; gap:5px; margin-top:9px; font-size:0.69rem; color:var(--text-muted); }
+.rdot { width:6px; height:6px; border-radius:50%; }
+
+/* ═══════════════════════════════════════════════
+   PAGE: ADVISORIES
+═══════════════════════════════════════════════ */
+.adv-hero {
+  grid-column:1/13;
+  padding:28px 32px;
+  display:grid;
+  grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;
+  align-items:center;
+  gap:20px;
+  border-radius:var(--r);
+}
+.adv-stat-num { font-size:2.6rem; font-weight:800; line-height:1; color:white; }
+.adv-stat-lbl { font-size:0.74rem; color:rgba(255,255,255,0.52); margin-top:3px; }
+.adv-divider { width:1px; height:50px; background:rgba(255,255,255,0.12); }
+
+.adv-card { border-radius:var(--r); padding:20px 22px; cursor:pointer; transition:all .28s; animation:tileReveal .5s ease both; }
+.adv-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-float); }
+.adv-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.adv-title { font-size:0.96rem; font-weight:700; }
+.adv-meta { font-size:0.67rem; margin-top:3px; }
+.adv-body { font-size:0.76rem; line-height:1.6; }
+.adv-sev { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+
+.adv-critical { background:rgba(254,226,226,0.72); border:1.5px solid rgba(239,68,68,0.28); backdrop-filter:blur(32px); }
+.adv-critical .adv-title { color:#991b1b; }
+.adv-critical .adv-meta,.adv-critical .adv-body { color:rgba(153,27,27,0.65); }
+
+.adv-warning { background:rgba(255,243,200,0.72); border:1.5px solid rgba(245,158,11,0.3); backdrop-filter:blur(32px); }
+.adv-warning .adv-title { color:#92400e; }
+.adv-warning .adv-meta,.adv-warning .adv-body { color:rgba(120,53,15,0.65); }
+
+.adv-info { background:var(--glass-white); border:1.5px solid var(--border-light); backdrop-filter:blur(32px); }
+.adv-info .adv-title { color:var(--text-body); }
+.adv-info .adv-meta,.adv-info .adv-body { color:var(--text-muted); }
+
+.adv-success { background:rgba(220,252,231,0.72); border:1.5px solid rgba(74,222,128,0.32); backdrop-filter:blur(32px); }
+.adv-success .adv-title { color:#14532d; }
+.adv-success .adv-meta,.adv-success .adv-body { color:rgba(20,83,45,0.6); }
+
+.weather-week-card { grid-column:1/5; padding:24px; border-radius:var(--r); }
+.wday-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(13,46,24,0.06); }
+.wday-row:last-child { border-bottom:none; }
+.wday-name { font-size:0.77rem; font-weight:600; color:var(--text-body); width:30px; }
+.wday-temp { font-size:0.88rem; font-weight:700; color:var(--text-body); }
+.wday-humidity { font-size:0.68rem; color:var(--text-muted); }
+
+.schedule-card { grid-column:5/13; padding:24px; border-radius:var(--r); }
+.sch-item { display:flex; align-items:center; gap:13px; padding:11px 0; border-bottom:1px solid rgba(13,46,24,0.06); cursor:pointer; border-radius:10px; transition:all .2s; }
+.sch-item:last-child { border-bottom:none; }
+.sch-item:hover { padding-left:8px; background:rgba(26,90,50,0.04); }
+.sch-badge { width:40px; height:40px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; font-family:'Plus Jakarta Sans',sans-serif; line-height:1; }
+.sch-badge.today { background:var(--dark-btn); color:white; box-shadow:0 4px 12px rgba(13,46,24,0.32); }
+.sch-badge.upcoming { background:rgba(13,46,24,0.08); color:var(--text-muted); }
+.sch-num { font-size:0.9rem; font-weight:800; }
+.sch-mo { font-size:0.52rem; font-weight:500; }
+.sch-action h4 { font-size:0.86rem; font-weight:700; color:var(--text-body); }
+.sch-action p { font-size:0.71rem; color:var(--text-muted); margin-top:2px; }
+.sch-check { width:22px; height:22px; border-radius:50%; border:2px solid rgba(13,46,24,0.18); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s; margin-left:auto; flex-shrink:0; }
+.sch-check.done { background:var(--green); border-color:var(--green); color:white; font-size:0.68rem; }
+
+/* ═══════════════════════════════════════════════
+   PAGE: SETTINGS
+═══════════════════════════════════════════════ */
+.settings-sidebar { grid-column:1/4; padding:22px; display:flex; flex-direction:column; border-radius:var(--r); }
+.settings-main { grid-column:4/13; display:flex; flex-direction:column; gap:14px; }
+.settings-card { padding:24px; display:flex; flex-direction:column; gap:0; border-radius:var(--r); }
+.settings-card-title { font-size:0.9rem; font-weight:700; color:var(--text-body); padding-bottom:14px; border-bottom:1px solid rgba(13,46,24,0.07); margin-bottom:14px; }
+
+.profile-banner { display:flex; align-items:center; gap:16px; padding:18px; background:rgba(13,46,24,0.06); border-radius:16px; margin-bottom:18px; }
+.profile-av { width:58px; height:58px; background:linear-gradient(135deg,#4ade80,#16a34a); border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.7rem; border:2.5px solid rgba(255,255,255,0.6); flex-shrink:0; }
+.profile-name { font-size:1.05rem; font-weight:800; color:var(--text-body); }
+.profile-sub { font-size:0.73rem; color:var(--text-muted); margin-top:2px; }
+
+.settings-nav-item { display:flex; align-items:center; gap:9px; padding:10px 13px; border-radius:12px; cursor:pointer; font-size:0.82rem; font-weight:500; color:var(--text-muted); transition:all .2s; }
+.settings-nav-item:hover { background:rgba(13,46,24,0.06); color:var(--text-body); }
+.settings-nav-item.on { background:rgba(26,90,50,0.1); color:var(--green); font-weight:600; }
+.settings-nav-icon { width:18px; text-align:center; }
+
+.settings-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(13,46,24,0.06); }
+.settings-row:last-child { border-bottom:none; }
+.settings-row h4 { font-size:0.84rem; font-weight:600; color:var(--text-body); }
+.settings-row p { font-size:0.71rem; color:var(--text-muted); margin-top:2px; }
+
+.toggle { width:42px; height:23px; background:rgba(13,46,24,0.14); border-radius:50px; position:relative; cursor:pointer; transition:background .25s; flex-shrink:0; }
+.toggle.on { background:var(--green); }
+.toggle::after { content:''; position:absolute; width:17px; height:17px; background:white; border-radius:50%; top:3px; left:3px; transition:left .25s; box-shadow:0 1px 4px rgba(0,0,0,0.2); }
+.toggle.on::after { left:22px; }
+
+.inp { width:100%; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(13,46,24,0.12); background:rgba(255,255,255,0.65); font-family:'Plus Jakarta Sans',sans-serif; font-size:0.84rem; color:var(--text-body); outline:none; transition:border-color .2s; }
+.inp:focus { border-color:var(--green); background:rgba(255,255,255,0.85); }
+.inp-label { font-size:0.67rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-faint); margin-bottom:5px; display:block; }
+.form-2col { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+
+.save-btn { padding:11px 26px; border-radius:50px; background:var(--dark-btn); border:none; color:white; font-weight:700; font-size:0.84rem; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; transition:all .2s; box-shadow:0 4px 14px rgba(13,46,24,0.25); margin-top:14px; }
+.save-btn:hover { background:#1a3d22; transform:translateY(-1px); }
+
+/* ─── responsive ─── */
+@media(max-width:920px){
+  .bento{grid-template-columns:1fr 1fr;padding:14px;gap:11px;}
+  nav{padding:0 18px;}
+  .nav-links{display:none;}
+  .conf-num{font-size:3.4rem;}
+  [style*="grid-column"]{grid-column:1/3!important;}
+  .hero-tile,.pin-tile,.tile-mancozeb,.tile-neem,.tile-stats,
+  .tile-map,.tile-organic,.tile-scan-new,.tile-alert,.tile-weather,
+  .diag-upload,.diag-side,.diag-history,.lib-search-bar,#lib-grid,
+  .adv-hero,.weather-week-card,.schedule-card,.settings-sidebar,.settings-main{
+    grid-column:1/3!important;
+  }
+  #lib-grid{grid-template-columns:1fr 1fr!important;}
+  .crop-chips{grid-template-columns:repeat(3,1fr);}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ FARM BACKGROUND ═══ -->
+<div class="farm-bg">
+  <svg class="farm-scene" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="sky" cx="72%" cy="18%" r="45%">
+        <stop offset="0%" stop-color="#fff9db" stop-opacity="1"/>
+        <stop offset="40%" stop-color="#e8f5c8" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#b8deb0" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#c8ebc0"/>
+        <stop offset="25%" stop-color="#96d4a0"/>
+        <stop offset="55%" stop-color="#5aab6a"/>
+        <stop offset="80%" stop-color="#2d7040"/>
+        <stop offset="100%" stop-color="#1a4a28"/>
+      </linearGradient>
+      <filter id="blur3"><feGaussianBlur stdDeviation="3"/></filter>
+      <filter id="blur6"><feGaussianBlur stdDeviation="6"/></filter>
+    </defs>
+    <!-- Sky & fields background -->
+    <rect width="1440" height="900" fill="url(#bgGrad)"/>
+    <!-- Distant field rows -->
+    <ellipse cx="720" cy="560" rx="900" ry="320" fill="#3d8f50" opacity="0.6"/>
+    <ellipse cx="400" cy="620" rx="600" ry="200" fill="#2d7a3e" opacity="0.7"/>
+    <ellipse cx="1100" cy="580" rx="500" ry="160" fill="#3a8844" opacity="0.5"/>
+    <!-- Crop rows (stripes) -->
+    <g opacity="0.35">
+      <rect x="0" y="600" width="1440" height="12" rx="6" fill="#4a9e5c"/>
+      <rect x="0" y="626" width="1440" height="10" rx="5" fill="#3a8a4c"/>
+      <rect x="0" y="650" width="1440" height="11" rx="5" fill="#4a9e5c"/>
+      <rect x="0" y="675" width="1440" height="9" rx="4" fill="#3a8a4c"/>
+      <rect x="0" y="698" width="1440" height="10" rx="5" fill="#4a9e5c"/>
+      <rect x="0" y="722" width="1440" height="11" rx="5" fill="#3a8a4c"/>
+      <rect x="0" y="748" width="1440" height="12" rx="6" fill="#4a9e5c"/>
+      <rect x="0" y="776" width="1440" height="14" rx="6" fill="#3a8a4c"/>
+    </g>
+    <!-- Sun glow -->
+    <ellipse cx="1010" cy="135" rx="140" ry="140" fill="url(#sky)" filter="url(#blur6)"/>
+    <ellipse cx="1010" cy="132" rx="55" ry="55" fill="#fff5b0" opacity="0.7" filter="url(#blur3)"/>
+    <ellipse cx="1010" cy="132" rx="28" ry="28" fill="#fffde0" opacity="0.9"/>
+    <!-- Sunbeam rays -->
+    <g opacity="0.12" filter="url(#blur3)">
+      <line x1="1010" y1="60" x2="1010" y2="0" stroke="#ffe680" stroke-width="18"/>
+      <line x1="1060" y1="82" x2="1120" y2="20" stroke="#ffe680" stroke-width="14"/>
+      <line x1="960" y1="82" x2="900" y2="20" stroke="#ffe680" stroke-width="14"/>
+      <line x1="1080" y1="132" x2="1160" y2="132" stroke="#ffe680" stroke-width="12"/>
+      <line x1="940" y1="132" x2="860" y2="132" stroke="#ffe680" stroke-width="12"/>
+    </g>
+    <!-- Tomato plant silhouette — right side -->
+    <g transform="translate(920, 160)" opacity="0.55">
+      <!-- Main stem -->
+      <path d="M60 480 Q62 300 55 200 Q50 150 60 80 Q65 40 75 10" stroke="#2d6a1e" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <!-- Branches -->
+      <path d="M58 320 Q30 300 10 270" stroke="#2d6a1e" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M60 240 Q90 220 110 195" stroke="#2d6a1e" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M57 180 Q25 165 5 148" stroke="#2d6a1e" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M62 140 Q92 128 112 110" stroke="#2d6a1e" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <!-- Leaves -->
+      <ellipse cx="10" cy="262" rx="28" ry="16" fill="#3a8a28" transform="rotate(-25,10,262)"/>
+      <ellipse cx="112" cy="188" rx="26" ry="15" fill="#4a9e38" transform="rotate(20,112,188)"/>
+      <ellipse cx="5" cy="142" rx="24" ry="13" fill="#3a8a28" transform="rotate(-30,5,142)"/>
+      <ellipse cx="115" cy="104" rx="22" ry="12" fill="#4a9e38" transform="rotate(15,115,104)"/>
+      <!-- Tomatoes -->
+      <circle cx="95" cy="200" r="28" fill="#e63c1e"/>
+      <circle cx="95" cy="200" r="28" fill="url(#tomatoGrad)" opacity="0.5"/>
+      <ellipse cx="90" cy="193" rx="8" ry="6" fill="rgba(255,255,255,0.25)" transform="rotate(-20,90,193)"/>
+      <!-- Tomato green top -->
+      <path d="M80 178 Q95 168 110 178" stroke="#2d6a1e" stroke-width="3" fill="none"/>
+      <line x1="95" y1="172" x2="95" y2="165" stroke="#2d6a1e" stroke-width="3"/>
+      <!-- Small yellow flower -->
+      <circle cx="22" cy="280" r="7" fill="#ffdc50" opacity="0.8"/>
+      <circle cx="22" cy="280" r="3" fill="#f59e0b"/>
+    </g>
+    <!-- Foreground flowers/plants -->
+    <g opacity="0.4">
+      <circle cx="150" cy="800" r="18" fill="#ffffff"/>
+      <circle cx="280" cy="820" r="14" fill="#f8f8ff"/>
+      <circle cx="50" cy="780" r="12" fill="#ffffff"/>
+      <circle cx="1350" cy="790" r="16" fill="#fff9f9"/>
+      <circle cx="1280" cy="810" r="12" fill="#ffffff"/>
+    </g>
+    <!-- Overall light wash from top -->
+    <rect width="1440" height="350" fill="rgba(255,255,255,0.14)"/>
+  </svg>
+  <div class="farm-overlay"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon">✅</span>
+  <span id="toast-msg">Done</span>
+</div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="m-roadmap">
+  <div class="modal-box">
+    <button class="modal-x" onclick="cm('m-roadmap')">✕</button>
+    <div class="modal-title">🗺 Remediation Roadmap</div>
+    <div class="modal-sub">Early Blight in Tomatoes — 5-Day Action Plan</div>
+    <div class="modal-section-title">Immediate Actions (Day 1–2)</div>
+    <div class="modal-grid">
+      <div class="modal-card" onclick="toast('✅ Mancozeb spray added to schedule')"><div class="modal-card-icon">💊</div><h4>Apply Mancozeb</h4><p>2.5g/litre, spray all leaves morning</p></div>
+      <div class="modal-card" onclick="toast('✅ Pruning reminder set for tomorrow')"><div class="modal-card-icon">✂️</div><h4>Prune Infected Leaves</h4><p>Remove & safely dispose in bags</p></div>
+    </div>
+    <div class="modal-section-title">Follow-up (Day 3–5)</div>
+    <div class="modal-grid">
+      <div class="modal-card" onclick="toast('🌿 Neem oil spray added to Day 4 schedule')"><div class="modal-card-icon">🌿</div><h4>Neem Oil Spray</h4><p>3ml/litre preventive dose</p></div>
+      <div class="modal-card" onclick="toast('📍 Directions sent to Krishi Kendra A')"><div class="modal-card-icon">📍</div><h4>Visit Krishi Kendra</h4><p>Restock Mancozeb supply (₹240/kg)</p></div>
+    </div>
+    <button class="modal-action-btn" onclick="cm('m-roadmap');toast('📅 Full roadmap saved to your schedule!')">Save to My Schedule</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-scan">
+  <div class="modal-box">
+    <button class="modal-x" onclick="cm('m-scan')">✕</button>
+    <div class="modal-title">🔬 AI Diagnosis Complete</div>
+    <div class="modal-sub">Analysis finished in 1.4 seconds — 3 diseases evaluated</div>
+    <div style="background:rgba(74,222,128,0.1);border:1.5px solid rgba(74,222,128,0.28);border-radius:18px;padding:20px;margin-bottom:20px;">
+      <div style="font-size:2rem;font-weight:800;color:var(--text-body);">95% <span style="font-size:0.96rem;font-weight:400;color:var(--text-muted);">Confidence</span></div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--green);margin-top:3px;">Early Blight (Alternaria solani)</div>
+      <div style="font-size:0.76rem;color:var(--text-muted);margin-top:6px;line-height:1.5;">Detected on Tomato leaf — moderate severity, low spread risk. Localized treatment recommended.</div>
+    </div>
+    <div class="modal-section-title">Top Treatment Options</div>
+    <div class="modal-grid">
+      <div class="modal-card" onclick="toast('🛒 Mancozeb added to shopping list')"><div class="modal-card-icon">🧪</div><h4>Mancozeb 75% WP</h4><p>Most effective · ₹240/kg</p></div>
+      <div class="modal-card" onclick="toast('🌿 Neem Oil added to list')"><div class="modal-card-icon">🌿</div><h4>Neem Oil (Organic)</h4><p>Safe alternative · ₹180/L</p></div>
+    </div>
+    <button class="modal-action-btn" onclick="cm('m-scan');toast('📋 Result saved to diagnosis history!')">Save to History</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="m-crop">
+  <div class="modal-box">
+    <button class="modal-x" onclick="cm('m-crop')">✕</button>
+    <div id="crop-modal-body"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app">
+<nav>
+  <div class="nav-logo" onclick="go('dashboard')">
+    <div class="logo-mark">🌿</div>
+    <span class="logo-text">CropSense <span>AI</span></span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#" class="active" id="nl-dashboard"   onclick="go('dashboard');return false">Dashboard</a></li>
+    <li><a href="#"              id="nl-crop-library"  onclick="go('crop-library');return false">Crop Library</a></li>
+    <li><a href="#"              id="nl-diagnose"      onclick="go('diagnose');return false">Diagnose</a></li>
+    <li><a href="#"              id="nl-advisories"    onclick="go('advisories');return false">Advisories</a></li>
+    <li><a href="#"              id="nl-settings"      onclick="go('settings');return false">Settings</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-icon-btn" onclick="toast('🔍 Search available in Crop Library page')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </div>
+    <div class="nav-icon-btn" onclick="toast('🔔 3 new advisories — Monsoon alert, Whitefly migration, Soil pH warning')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <div class="notif-dot"></div>
+    </div>
+    <button class="nav-cta" onclick="go('diagnose')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Scan Crop
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: DASHBOARD
+═══════════════════════════════════════════ -->
+<div class="page active" id="p-dashboard">
+<div class="bento">
+
+  <!-- HERO TILE -->
+  <div class="tile hero-tile" style="grid-column:1/9; animation-delay:.03s">
+    <div class="hero-photo"></div>
+    <div class="hero-sun"></div>
+    <!-- Tomato plant SVG in hero -->
+    <svg class="hero-plant" viewBox="0 0 260 400" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;right:55px;bottom:0;top:0;width:200px;opacity:0.65;">
+      <path d="M100 400 Q102 280 96 200 Q90 150 98 90 Q103 55 115 20" stroke="#2d6a1e" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="M98 280 Q65 260 38 234" stroke="#2d6a1e" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <path d="M100 210 Q135 192 158 170" stroke="#2d6a1e" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <path d="M96 155 Q58 138 30 122" stroke="#2d6a1e" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse cx="38" cy="226" rx="34" ry="18" fill="#3a8a28" transform="rotate(-22,38,226)"/>
+      <ellipse cx="160" cy="163" rx="30" ry="17" fill="#4a9e38" transform="rotate(18,160,163)"/>
+      <ellipse cx="28" cy="116" rx="28" ry="15" fill="#3a8a28" transform="rotate(-28,28,116)"/>
+      <circle cx="140" cy="175" r="30" fill="#e63c1e" opacity="0.9"/>
+      <ellipse cx="134" cy="168" rx="9" ry="7" fill="rgba(255,255,255,0.28)" transform="rotate(-18,134,168)"/>
+      <path d="M122 155 Q140 144 158 155" stroke="#2d6a1e" stroke-width="2.5" fill="none"/>
+      <line x1="140" y1="147" x2="140" y2="140" stroke="#2d6a1e" stroke-width="2.5"/>
+      <circle cx="42" cy="246" r="8" fill="#ffdd50" opacity="0.75"/>
+      <circle cx="42" cy="246" r="3.5" fill="#f59e0b"/>
+    </svg>
+    <!-- Scan card (top right of hero) -->
+    <div class="scan-card">
+      <div class="scan-row"><span class="scan-lbl">Crop Type</span><span class="scan-val">Tomato</span></div>
+      <div class="scan-divider"></div>
+      <div class="scan-row"><span class="scan-lbl">Severity</span><span class="scan-val a">Moderate</span></div>
+      <div class="scan-row"><span class="scan-lbl">Spread Risk</span><span class="scan-val g">Low</span></div>
+      <div class="scan-row"><span class="scan-lbl">Scanned</span><span class="scan-val">2 min ago</span></div>
+    </div>
+    <div class="blight-ring"></div>
+    <div class="blight-label">⚠ BLIGHT ZONE</div>
+    <div class="hero-content">
+      <div class="ai-badge"><span class="pulse-ring"></span> AI Analysis Complete</div>
+      <div>
+        <span class="conf-num">95%</span>
+        <span class="conf-label">Confidence:</span>
+      </div>
+      <div class="disease-title">Early Blight in Tomatoes</div>
+      <button class="hero-cta" onclick="om('m-roadmap')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        Remediation Roadmap
+      </button>
+    </div>
+  </div>
+
+  <!-- PIN TILE -->
+  <div class="tile pin-tile g-light" style="animation-delay:.08s">
+    <div class="big-pin-wrap">
+      <div class="pin-wave"></div><div class="pin-wave"></div><div class="pin-wave"></div>
+      <svg class="pin-icon-svg" viewBox="0 0 42 50" fill="none">
+        <path d="M21 0C9.95 0 1 8.95 1 20C1 33.5 21 50 21 50C21 50 41 33.5 41 20C41 8.95 32.05 0 21 0Z" fill="#1a7a3c" opacity=".88"/>
+        <circle cx="21" cy="20" r="10" fill="white" opacity=".92"/>
+        <path d="M16 20l4 4 7-7" stroke="#1a7a3c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="pin-title">Nearest Retailers</div>
+    <div class="pin-sub">Krishi Kendra locator active</div>
+    <div class="retailer-grid">
+      <div class="retailer-card" onclick="toast('📍 Navigating to Krishi Kendra A — 0.8km')"><span class="rc-name">Krishi Kendra A</span><span class="rc-dist">📍 0.8 km</span></div>
+      <div class="retailer-card" onclick="toast('📍 Navigating to AgroBazar — 1.4km')"><span class="rc-name">AgroBazar</span><span class="rc-dist">📍 1.4 km</span></div>
+      <div class="retailer-card" onclick="toast('📍 Navigating to Kisan Store — 2.1km')"><span class="rc-name">Kisan Store</span><span class="rc-dist">📍 2.1 km</span></div>
+      <div class="retailer-card" onclick="toast('📍 Navigating to FarmCo — 3.0km')"><span class="rc-name">FarmCo</span><span class="rc-dist">📍 3.0 km</span></div>
+    </div>
+  </div>
+
+  <!-- SECTION LABEL -->
+  <div class="section-lbl" style="grid-column:1/13;animation-delay:.11s">Localized <span>Treatment</span></div>
+
+  <!-- MANCOZEB -->
+  <div class="tile tile-mancozeb g-light" style="animation-delay:.15s">
+    <span class="tag tag-chemical">● Fungicide</span>
+    <div>
+      <div class="pname pname-l">Mancozeb</div>
+      <div class="ptype-l">Chemical Treatment · 75% WP</div>
+    </div>
+    <div class="pdesc-l">Broad-spectrum protectant. Apply 2.5g/litre every 10 days. Effective against Early Blight and Downy Mildew.</div>
+    <div class="loc-chip loc-chip-light" onclick="toast('📍 Krishi Kendra A has stock — 0.8km away')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.25 7 13 7 13s7-7.75 7-13C19 5.1 15.9 2 12 2z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      Available at nearest Krishi Kendra
+    </div>
+  </div>
+
+  <!-- NEEM -->
+  <div class="tile tile-neem g-dark" style="animation-delay:.2s">
+    <div class="neem-glow"></div>
+    <span class="tag tag-dark" style="position:relative;z-index:1;">✦ Organic</span>
+    <div style="position:relative;z-index:1;">
+      <div class="pname pname-d">Neem Extract</div>
+      <div class="ptype-d">Organic Alternative · Cold-pressed</div>
+    </div>
+    <div class="pdesc-d">Natural anti-fungal & anti-bacterial. 3–5ml/litre spray. Safe for all growth stages and pollinators.</div>
+    <div class="loc-chip loc-chip-dark" onclick="toast('📍 Krishi Kendra B has organic neem — 1.2km')" style="position:relative;z-index:1;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.25 7 13 7 13s7-7.75 7-13C19 5.1 15.9 2 12 2z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      Available at nearest Krishi Kendra
+    </div>
+    <!-- Bottle illustration -->
+    <div class="neem-bottle-wrap">
+      <svg viewBox="0 0 64 124" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="20" y="0" width="24" height="8" rx="3" fill="rgba(255,255,255,0.22)"/>
+        <path d="M12 18Q9 26 9 40L9 104Q9 112 18 114L46 114Q55 112 55 104L55 40Q55 26 52 18L22 14Z" fill="rgba(74,222,128,0.28)" stroke="rgba(74,222,128,0.45)" stroke-width="1.2"/>
+        <rect x="14" y="46" width="36" height="38" rx="5" fill="rgba(74,222,128,0.16)"/>
+        <path d="M16 62Q32 54 48 62" stroke="rgba(74,222,128,0.55)" stroke-width="1.5"/>
+        <path d="M16 70Q32 62 48 70" stroke="rgba(74,222,128,0.35)" stroke-width="1"/>
+        <circle cx="32" cy="36" r="7" fill="rgba(255,255,255,0.08)" stroke="rgba(74,222,128,0.45)" stroke-width="1"/>
+        <text x="32" y="40" text-anchor="middle" font-size="7" fill="rgba(74,222,128,0.9)" font-family="sans-serif">🌿</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="tile tile-stats g-light" style="animation-delay:.25s">
+    <div class="stat-title">Disease Analysis</div>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <div class="stat-row"><div><div class="stat-lbl">Leaf Coverage Affected</div><div class="stat-bar"><div class="stat-fill" style="width:38%;animation-delay:.5s"></div></div></div><div class="stat-val">38%</div></div>
+      <div class="stat-row"><div><div class="stat-lbl">Spread Velocity</div><div class="stat-bar"><div class="stat-fill amber" style="width:22%;animation-delay:.65s"></div></div></div><div class="stat-val">22%</div></div>
+      <div class="stat-row"><div><div class="stat-lbl">Treatment Efficacy (est.)</div><div class="stat-bar"><div class="stat-fill" style="width:87%;animation-delay:.8s"></div></div></div><div class="stat-val">87%</div></div>
+      <div class="stat-row"><div><div class="stat-lbl">AI Confidence Score</div><div class="stat-bar"><div class="stat-fill" style="width:95%;animation-delay:.95s"></div></div></div><div class="stat-val">95%</div></div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="tile tile-map g-light" style="animation-delay:.3s">
+    <div class="map-title"><span class="pulse-ring"></span> Nearest Retailers — Live Map</div>
+    <div class="map-canvas">
+      <div class="map-grid-h" style="top:33%"></div><div class="map-grid-h" style="top:66%"></div>
+      <div class="map-grid-v" style="left:25%"></div><div class="map-grid-v" style="left:50%"></div><div class="map-grid-v" style="left:75%"></div>
+      <div class="map-pin" style="left:17%;top:28%;" onclick="toast('📍 Krishi Kendra A — Mancozeb in stock')"><div class="map-dot green"></div><div class="map-tip">Krishi Kendra A · 0.8km</div></div>
+      <div class="map-pin" style="left:44%;top:54%;" onclick="toast('📍 AgroBazar — All items available')"><div class="map-dot green" style="animation-delay:.5s"></div><div class="map-tip">AgroBazar · 1.4km</div></div>
+      <div class="map-pin" style="left:70%;top:24%;" onclick="toast('📍 Kisan Store — Neem oil available')"><div class="map-dot green" style="animation-delay:1s"></div><div class="map-tip">Kisan Store · 2.1km</div></div>
+      <div class="map-pin" style="left:80%;top:64%;" onclick="toast('📍 FarmCo — Limited stock warning')"><div class="map-dot amber" style="animation-delay:1.5s"></div><div class="map-tip">FarmCo · 3.0km</div></div>
+      <div class="you-pin" style="left:37%;top:47%;"></div>
+      <div class="you-lbl" style="left:37%;top:57%;">📍 Your Farm</div>
+    </div>
+    <div class="map-legend">
+      <div class="leg"><div class="leg-dot" style="background:#22c55e"></div> In Stock</div>
+      <div class="leg"><div class="leg-dot" style="background:#f59e0b"></div> Limited</div>
+      <div class="leg"><div class="leg-dot" style="background:white;border:2px solid #1a7a3c"></div> Your Farm</div>
+    </div>
+  </div>
+
+  <!-- ORGANIC -->
+  <div class="tile tile-organic g-green-dark" style="animation-delay:.35s">
+    <div class="organic-hdr">🌱 Organic Alternatives</div>
+    <div class="org-grid">
+      <div class="org-card" onclick="toast('🌿 Neem Oil — Azadirachtin 300ppm · ₹180/L')"><div class="org-icon">🌿</div><div class="org-name">Neem Oil</div><div class="org-detail">Azadirachtin</div><div class="org-eff"><div class="org-eff-fill" style="width:78%"></div></div></div>
+      <div class="org-card" onclick="toast('🍃 Trichoderma viride — Bio-fungicide · ₹95/kg')"><div class="org-icon">🍃</div><div class="org-name">Trichoderma</div><div class="org-detail">Bio-fungicide</div><div class="org-eff"><div class="org-eff-fill" style="width:65%"></div></div></div>
+      <div class="org-card" onclick="toast('🧄 Garlic Spray — Allicin extract · ₹40/L')"><div class="org-icon">🧄</div><div class="org-name">Garlic Spray</div><div class="org-detail">Allicin extract</div><div class="org-eff"><div class="org-eff-fill" style="width:52%"></div></div></div>
+      <div class="org-card" onclick="toast('🌸 Pyrethrin — Botanical · ₹220/L')"><div class="org-icon">🌸</div><div class="org-name">Pyrethrin</div><div class="org-detail">Botanical</div><div class="org-eff"><div class="org-eff-fill" style="width:71%"></div></div></div>
+      <div class="org-card" onclick="toast('🪸 Seaweed Extract — Immunity · ₹110/L')"><div class="org-icon">🪸</div><div class="org-name">Seaweed Ext.</div><div class="org-detail">Immunity boost</div><div class="org-eff"><div class="org-eff-fill" style="width:60%"></div></div></div>
+      <div class="org-card" onclick="toast('🌾 Copper Soap — Organic Cu · ₹175/kg')"><div class="org-icon">🌾</div><div class="org-name">Copper Soap</div><div class="org-detail">Organic Cu</div><div class="org-eff"><div class="org-eff-fill" style="width:83%"></div></div></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW -->
+  <div class="tile-scan-new" style="animation-delay:.4s" onclick="go('diagnose')">
+    <div><h3>Scan New Crop</h3><p>Upload leaf image for instant AI diagnosis</p></div>
+    <div class="scan-icon-circle">📸</div>
+  </div>
+  <div class="tile-alert" style="animation-delay:.44s" onclick="go('advisories')">
+    <div class="alert-icon">⚠️</div>
+    <div><div class="alert-title">Monsoon Alert Active</div><div class="alert-body">High humidity forecasted — elevated blight risk. Apply preventive spray today.</div></div>
+  </div>
+  <div class="tile tile-weather g-light" style="animation-delay:.48s;cursor:pointer;" onclick="go('advisories')">
+    <div class="weather-emoji">⛅</div>
+    <div>
+      <div class="weather-temp">28°C</div>
+      <div class="weather-info"><h4>Kolkata Region</h4><p>Humidity 82% · Partly cloudy · 18 km/h</p></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: DIAGNOSE
+═══════════════════════════════════════════ -->
+<div class="page" id="p-diagnose">
+<div class="bento">
+  <div class="section-lbl" style="grid-column:1/13;animation-delay:.03s">AI <span>Diagnose</span></div>
+
+  <div class="tile diag-upload g-light" style="animation-delay:.08s">
+    <div style="font-size:.88rem;font-weight:700;color:var(--text-body);margin-bottom:2px;">Select Crop Type</div>
+    <div class="crop-chips">
+      <div class="crop-chip sel" id="cc-tomato" onclick="pickCrop('tomato')">🍅 Tomato</div>
+      <div class="crop-chip" id="cc-potato" onclick="pickCrop('potato')">🥔 Potato</div>
+      <div class="crop-chip" id="cc-wheat" onclick="pickCrop('wheat')">🌾 Wheat</div>
+      <div class="crop-chip" id="cc-rice" onclick="pickCrop('rice')">🌾 Rice</div>
+      <div class="crop-chip" id="cc-cotton" onclick="pickCrop('cotton')">🪴 Cotton</div>
+      <div class="crop-chip" id="cc-maize" onclick="pickCrop('maize')">🌽 Maize</div>
+    </div>
+    <label class="upload-drop" id="drop-zone">
+      <input type="file" accept="image/*" style="display:none" onchange="handleFile(this)">
+      <div style="font-size:2.5rem;margin-bottom:11px;" id="uz-icon">📷</div>
+      <h3 id="uz-h">Drop leaf image here</h3>
+      <p id="uz-p">Supports JPG, PNG, WebP · Max 10MB<br>Photograph in natural daylight for best results</p>
+    </label>
+    <button class="run-btn" onclick="runDiag()"><span id="rb-text">🔬 Run AI Diagnosis</span></button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:4px;">
+      <div style="background:rgba(74,222,128,0.08);border:1.5px solid rgba(74,222,128,0.22);border-radius:12px;padding:10px;font-size:.72rem;color:var(--green);">📸 Use bright indirect light</div>
+      <div style="background:rgba(245,158,11,0.08);border:1.5px solid rgba(245,158,11,0.22);border-radius:12px;padding:10px;font-size:.72rem;color:#92400e;">🍃 Include both healthy &amp; diseased leaf</div>
+      <div style="background:rgba(59,130,246,0.08);border:1.5px solid rgba(59,130,246,0.22);border-radius:12px;padding:10px;font-size:.72rem;color:#1d4ed8;">📏 Camera 15–25cm from leaf</div>
+    </div>
+  </div>
+
+  <div class="diag-side" style="animation-delay:.13s">
+    <div class="tile diag-result g-dark">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span class="tag tag-dark">LATEST RESULT</span><span style="font-size:.66rem;color:rgba(255,255,255,.35);">2 min ago</span></div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:.76rem;color:#86efac;"><span class="pulse-ring"></span> Alternaria solani confirmed</div>
+      <div class="pname pname-d" style="font-size:1.35rem;">Early Blight</div>
+      <div style="font-size:.75rem;color:rgba(255,255,255,.5);line-height:1.6;">Dark concentric ring lesions on lower leaves. Triggered by humid conditions.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:11px;"><div style="font-size:.65rem;color:rgba(255,255,255,.4);margin-bottom:3px;">Confidence</div><div style="font-size:1.3rem;font-weight:800;color:#4ade80;">95%</div></div>
+        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:11px;"><div style="font-size:.65rem;color:rgba(255,255,255,.4);margin-bottom:3px;">Severity</div><div style="font-size:1.3rem;font-weight:800;color:#fcd34d;">Mod.</div></div>
+      </div>
+      <button class="modal-action-btn" onclick="om('m-roadmap')">View Treatment Plan</button>
+    </div>
+    <div class="tile g-light" style="padding:18px;border-radius:var(--r);flex:1;">
+      <div style="font-weight:700;font-size:.88rem;color:var(--text-body);margin-bottom:10px;">💡 Model Statistics</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div><div style="font-size:.72rem;color:var(--text-muted);display:flex;justify-content:space-between;"><span>Early Blight</span><span style="font-weight:700;color:var(--green);">95%</span></div><div class="stat-bar"><div class="stat-fill" style="width:95%;animation-delay:.4s"></div></div></div>
+        <div><div style="font-size:.72rem;color:var(--text-muted);display:flex;justify-content:space-between;"><span>Late Blight</span><span style="font-weight:700;color:var(--text-body);">3%</span></div><div class="stat-bar"><div class="stat-fill" style="width:3%;animation-delay:.55s;background:rgba(13,46,24,.25)"></div></div></div>
+        <div><div style="font-size:.72rem;color:var(--text-muted);display:flex;justify-content:space-between;"><span>Mosaic Virus</span><span style="font-weight:700;color:var(--text-body);">2%</span></div><div class="stat-bar"><div class="stat-fill" style="width:2%;animation-delay:.7s;background:rgba(13,46,24,.2)"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tile diag-history g-light" style="animation-delay:.18s">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-weight:700;font-size:.96rem;color:var(--text-body);">📋 Diagnosis History</div>
+      <button style="padding:6px 14px;border-radius:50px;background:rgba(26,90,50,.08);border:1.5px solid rgba(26,90,50,.18);color:var(--green);font-size:.71rem;font-weight:600;cursor:pointer;" onclick="toast('📄 Exporting history as PDF...')">Export PDF</button>
+    </div>
+    <div class="hist-row"><div><div class="hist-crop">🍅 Tomato</div><div class="hist-disease">Early Blight (Alternaria solani)</div></div><div style="text-align:right"><div class="hist-conf">95%</div><div class="hist-date">Today · 10:32 AM</div></div><button class="hist-btn" onclick="om('m-scan')">View</button></div>
+    <div class="hist-row"><div><div class="hist-crop">🥔 Potato</div><div class="hist-disease">Late Blight (Phytophthora infestans)</div></div><div style="text-align:right"><div class="hist-conf">88%</div><div class="hist-date">Yesterday · 3:14 PM</div></div><button class="hist-btn" onclick="toast('📄 Loading potato blight report...')">View</button></div>
+    <div class="hist-row"><div><div class="hist-crop">🌾 Wheat</div><div class="hist-disease">Powdery Mildew (Erysiphe graminis)</div></div><div style="text-align:right"><div class="hist-conf">91%</div><div class="hist-date">May 5 · 9:45 AM</div></div><button class="hist-btn" onclick="toast('📄 Loading wheat mildew report...')">View</button></div>
+    <div class="hist-row"><div><div class="hist-crop">🌽 Maize</div><div class="hist-disease">Northern Leaf Blight (Exserohilum turcicum)</div></div><div style="text-align:right"><div class="hist-conf">79%</div><div class="hist-date">May 3 · 2:20 PM</div></div><button class="hist-btn" onclick="toast('📄 Loading maize blight report...')">View</button></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: CROP LIBRARY
+═══════════════════════════════════════════ -->
+<div class="page" id="p-crop-library">
+<div class="bento">
+  <div class="section-lbl" style="grid-column:1/13;animation-delay:.03s">Crop <span>Library</span></div>
+  <div class="tile lib-search-bar g-light" style="animation-delay:.08s">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(20,55,35,0.3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input class="lib-input" placeholder="Search crops, diseases, treatments..." oninput="filterLib(this.value)">
+    <div class="lib-filters">
+      <div class="lib-filter on" onclick="libFilter(this,'all')">All</div>
+      <div class="lib-filter" onclick="libFilter(this,'vegetable')">Vegetables</div>
+      <div class="lib-filter" onclick="libFilter(this,'grain')">Grains</div>
+      <div class="lib-filter" onclick="libFilter(this,'cash')">Cash Crops</div>
+    </div>
+  </div>
+  <div id="lib-grid"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: ADVISORIES
+═══════════════════════════════════════════ -->
+<div class="page" id="p-advisories">
+<div class="bento">
+  <div class="section-lbl" style="grid-column:1/13;animation-delay:.03s">Regional <span>Advisories</span></div>
+  <div class="tile adv-hero g-green-dark" style="animation-delay:.08s">
+    <div class="advisory-stat"><div class="adv-stat-num" style="color:#fca5a5">2</div><div class="adv-stat-lbl">Critical Alerts</div></div>
+    <div class="adv-divider"></div>
+    <div class="advisory-stat"><div class="adv-stat-num" style="color:#fcd34d">5</div><div class="adv-stat-lbl">Warnings Active</div></div>
+    <div class="adv-divider"></div>
+    <div class="advisory-stat"><div class="adv-stat-num" style="color:#86efac">12</div><div class="adv-stat-lbl">Crops Monitored</div></div>
+    <div class="adv-divider"></div>
+    <div class="advisory-stat"><div class="adv-stat-num" style="color:white;font-size:1.5rem">Kolkata</div><div class="adv-stat-lbl">Active Region</div></div>
+  </div>
+  <div class="adv-card adv-critical" style="grid-column:1/5;animation-delay:.12s" onclick="toast('🚨 Full monsoon blight report opening...')"><div class="adv-hdr"><div><span class="tag tag-danger" style="margin-bottom:7px;display:inline-flex">🚨 CRITICAL</span><div class="adv-title">Monsoon Blight Outbreak</div><div class="adv-meta">Issued Today · West Bengal Region</div></div><div class="adv-sev" style="background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.5)"></div></div><div class="adv-body">Heavy rainfall forecasted for 5 days. High risk of Early and Late Blight across tomato, potato, and leafy vegetables. Apply copper-based fungicide before onset.</div></div>
+  <div class="adv-card adv-critical" style="grid-column:5/9;animation-delay:.16s" onclick="toast('🚨 Pest migration report opening...')"><div class="adv-hdr"><div><span class="tag tag-danger" style="margin-bottom:7px;display:inline-flex">🚨 CRITICAL</span><div class="adv-title">Whitefly Migration Alert</div><div class="adv-meta">Issued Yesterday · Gangetic Plains</div></div><div class="adv-sev" style="background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.5)"></div></div><div class="adv-body">Large-scale whitefly migration from Bihar corridor detected. Primary threat to cotton and okra. Install yellow sticky traps and apply neem-based spray preventively.</div></div>
+  <div class="adv-card adv-warning" style="grid-column:9/13;animation-delay:.2s" onclick="toast('⚠️ Soil pH advisory opening...')"><div class="adv-hdr"><div><span class="tag tag-amber" style="margin-bottom:7px;display:inline-flex">⚠ WARNING</span><div class="adv-title">Soil pH Imbalance</div><div class="adv-meta">May 6 · Hooghly District</div></div><div class="adv-sev" style="background:#f59e0b"></div></div><div class="adv-body">Soil tests show rising acidity (pH 5.2–5.8) in paddy fields. Apply agricultural lime 200kg/acre. High acidity promotes fungal growth.</div></div>
+  <div class="adv-card adv-success" style="grid-column:1/5;animation-delay:.24s" onclick="toast('✅ Mango season outlook opening...')"><div class="adv-hdr"><div><span class="tag tag-organic" style="margin-bottom:7px;display:inline-flex">✓ POSITIVE</span><div class="adv-title">Mango Season Outlook</div><div class="adv-meta">May 4 · Bengal Region</div></div><div class="adv-sev" style="background:#4ade80"></div></div><div class="adv-body">Excellent mango harvest expected. Favorable temperature (28–32°C) and moderate humidity. No major pest threats. Quality grade projected A+.</div></div>
+  <div class="adv-card adv-info" style="grid-column:5/9;animation-delay:.28s" onclick="toast('ℹ️ PM-Kisan subsidy details opening...')"><div class="adv-hdr"><div><span class="tag tag-info" style="margin-bottom:7px;display:inline-flex">ℹ INFO</span><div class="adv-title">PM-Kisan Subsidy Update</div><div class="adv-meta">May 3 · Nationwide</div></div><div class="adv-sev" style="background:#60a5fa"></div></div><div class="adv-body">50% price reduction on certified bio-pesticides at all Krishi Kendras until June 30. Register with Aadhaar and land records at nearest centre.</div></div>
+  <div class="adv-card adv-warning" style="grid-column:9/13;animation-delay:.32s" onclick="toast('⚠️ Irrigation water advisory opening...')"><div class="adv-hdr"><div><span class="tag tag-amber" style="margin-bottom:7px;display:inline-flex">⚠ WARNING</span><div class="adv-title">Irrigation Water Quality</div><div class="adv-meta">May 5 · Howrah Zone</div></div><div class="adv-sev" style="background:#f59e0b"></div></div><div class="adv-body">Elevated salinity in canal water — EC at 2.8 dS/m above safe threshold. Avoid for salt-sensitive crops (tomato, spinach). Use groundwater if available.</div></div>
+  <div class="tile weather-week-card g-light" style="animation-delay:.36s">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;"><div style="font-size:1.9rem">⛅</div><div><div style="font-size:1.6rem;font-weight:800;color:var(--text-body)">28°C</div><div style="font-size:.72rem;color:var(--text-muted)">Kolkata · H:82% · Partly Cloudy</div></div></div>
+    <div style="font-weight:700;font-size:.86rem;color:var(--text-body);margin-bottom:6px">7-Day Forecast</div>
+    <div class="wday-row"><div class="wday-name">Today</div><div>⛅</div><div><div class="wday-temp">28°C</div><div class="wday-humidity">H:82%</div></div></div>
+    <div class="wday-row"><div class="wday-name">Fri</div><div>🌧</div><div><div class="wday-temp">24°C</div><div class="wday-humidity">H:91%</div></div></div>
+    <div class="wday-row"><div class="wday-name">Sat</div><div>⛈</div><div><div class="wday-temp">22°C</div><div class="wday-humidity">H:96%</div></div></div>
+    <div class="wday-row"><div class="wday-name">Sun</div><div>🌧</div><div><div class="wday-temp">25°C</div><div class="wday-humidity">H:89%</div></div></div>
+    <div class="wday-row"><div class="wday-name">Mon</div><div>⛅</div><div><div class="wday-temp">27°C</div><div class="wday-humidity">H:78%</div></div></div>
+    <div class="wday-row"><div class="wday-name">Tue</div><div>🌤</div><div><div class="wday-temp">30°C</div><div class="wday-humidity">H:72%</div></div></div>
+    <div class="wday-row" style="border:none"><div class="wday-name">Wed</div><div>☀️</div><div><div class="wday-temp">32°C</div><div class="wday-humidity">H:65%</div></div></div>
+  </div>
+  <div class="tile schedule-card g-light" style="animation-delay:.4s">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div style="font-weight:700;font-size:.92rem;color:var(--text-body)">🗓 Spray Schedule</div><button style="padding:5px 13px;border-radius:50px;background:rgba(26,90,50,.08);border:1.5px solid rgba(26,90,50,.18);color:var(--green);font-size:.69rem;font-weight:600;cursor:pointer" onclick="toast('📅 Schedule exported to calendar!')">Export</button></div>
+    <div style="font-size:.7rem;color:var(--text-faint);margin-bottom:10px">Tap to mark complete</div>
+    <div class="sch-item" onclick="toggleSch(this)"><div class="sch-badge today"><div class="sch-num">8</div><div class="sch-mo">May</div></div><div class="sch-action"><h4>Mancozeb — Tomatoes</h4><p>2.5g/litre · Field A & B · 7 AM</p></div><div class="sch-check done">✓</div></div>
+    <div class="sch-item" onclick="toggleSch(this)"><div class="sch-badge upcoming"><div class="sch-num">10</div><div class="sch-mo">May</div></div><div class="sch-action"><h4>Neem Oil — All Crops</h4><p>3ml/litre · Preventive dose · 6 AM</p></div><div class="sch-check"></div></div>
+    <div class="sch-item" onclick="toggleSch(this)"><div class="sch-badge upcoming"><div class="sch-num">13</div><div class="sch-mo">May</div></div><div class="sch-action"><h4>Copper Oxychloride — Potato</h4><p>2g/litre · Post-rain spray · 7 AM</p></div><div class="sch-check"></div></div>
+    <div class="sch-item" onclick="toggleSch(this)"><div class="sch-badge upcoming"><div class="sch-num">18</div><div class="sch-mo">May</div></div><div class="sch-action"><h4>Mancozeb Follow-up</h4><p>2.5g/litre · All fields · 6:30 AM</p></div><div class="sch-check"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: SETTINGS
+═══════════════════════════════════════════ -->
+<div class="page" id="p-settings">
+<div class="bento">
+  <div class="section-lbl" style="grid-column:1/13;animation-delay:.03s">Account <span>Settings</span></div>
+  <div class="tile settings-sidebar g-light" style="animation-delay:.08s">
+    <div class="profile-banner">
+      <div class="profile-av">👨‍🌾</div>
+      <div><div class="profile-name">Ramesh Kumar</div><div class="profile-sub">Farmer · Kolkata, WB</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px;">
+      <div class="settings-nav-item on" onclick="stab(this)"><span class="settings-nav-icon">👤</span> Profile</div>
+      <div class="settings-nav-item" onclick="stab(this)"><span class="settings-nav-icon">🔔</span> Notifications</div>
+      <div class="settings-nav-item" onclick="stab(this)"><span class="settings-nav-icon">🌾</span> Farm Details</div>
+      <div class="settings-nav-item" onclick="stab(this)"><span class="settings-nav-icon">🌐</span> Language & Region</div>
+      <div class="settings-nav-item" onclick="stab(this)"><span class="settings-nav-icon">🔒</span> Privacy</div>
+      <div style="height:1px;background:rgba(13,46,24,.07);margin:8px 0"></div>
+      <div class="settings-nav-item" onclick="toast('📤 Logging out...')" style="color:#dc2626;"><span class="settings-nav-icon">🚪</span> Log Out</div>
+    </div>
+  </div>
+  <div class="settings-main">
+    <div class="tile settings-card g-light" style="animation-delay:.12s">
+      <div class="settings-card-title">👤 Profile Information</div>
+      <div class="form-2col">
+        <div><label class="inp-label">First Name</label><input class="inp" value="Ramesh"></div>
+        <div><label class="inp-label">Last Name</label><input class="inp" value="Kumar"></div>
+        <div><label class="inp-label">Phone</label><input class="inp" value="+91 98765 43210"></div>
+        <div><label class="inp-label">Email</label><input class="inp" value="ramesh@farm.in"></div>
+        <div><label class="inp-label">District</label><input class="inp" value="Hooghly"></div>
+        <div><label class="inp-label">State</label><input class="inp" value="West Bengal"></div>
+      </div>
+      <button class="save-btn" onclick="toast('✅ Profile saved successfully!')">Save Changes</button>
+    </div>
+    <div class="tile settings-card g-light" style="animation-delay:.16s">
+      <div class="settings-card-title">🔔 Notification Preferences</div>
+      <div class="settings-row"><div><h4>Disease Outbreak Alerts</h4><p>Get notified of regional outbreaks instantly</p></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="settings-row"><div><h4>Spray Schedule Reminders</h4><p>Daily reminders 30 min before spray time</p></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="settings-row"><div><h4>Weather Warnings</h4><p>Monsoon and extreme weather alerts</p></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="settings-row"><div><h4>Market Price Updates</h4><p>Daily mandi prices for your crops</p></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      <div class="settings-row"><div><h4>Government Scheme Alerts</h4><p>New subsidies and PM-Kisan updates</p></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="settings-row"><div><h4>Weekly Health Report</h4><p>Summary of your farm's crop health</p></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      <button class="save-btn" onclick="toast('✅ Notification preferences saved!')">Save Preferences</button>
+    </div>
+    <div class="tile settings-card g-light" style="animation-delay:.2s">
+      <div class="settings-card-title">🌾 Farm Details</div>
+      <div class="form-2col">
+        <div><label class="inp-label">Farm Name</label><input class="inp" value="Kumar Agro Farm"></div>
+        <div><label class="inp-label">Total Area (Acres)</label><input class="inp" type="number" value="12.5"></div>
+        <div><label class="inp-label">Primary Crop</label><input class="inp" value="Tomato"></div>
+        <div><label class="inp-label">Soil Type</label><input class="inp" value="Alluvial"></div>
+        <div><label class="inp-label">Water Source</label><input class="inp" value="Canal + Borewell"></div>
+        <div><label class="inp-label">Farm GPS</label><input class="inp" value="22.5726, 88.3639"></div>
+      </div>
+      <button class="save-btn" onclick="toast('✅ Farm details updated!')">Update Farm</button>
+    </div>
+  </div>
+</div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+/* ── Navigation ── */
+function go(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+  const nl = document.getElementById('nl-' + id);
+  if (nl) nl.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (id === 'crop-library') renderLib();
+}
+
+/* ── Toast ── */
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  const icon = msg.match(/^([\u{1F300}-\u{1FFFF}✅📍🔍🔔📅📋📄⚠️🚨ℹ️✓🛒🌿💊✂️🧪📸🔬📤🗺])/u);
+  document.getElementById('toast-icon').textContent = icon ? icon[0] : '•';
+  document.getElementById('toast-msg').textContent = msg.replace(/^[\u{1F300}-\u{1FFFF}✅📍🔍🔔📅📋📄⚠️🚨ℹ️✓🛒🌿💊✂️🧪📸🔬📤🗺]\s*/u, '');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ── Modals ── */
+function om(id) { document.getElementById(id).classList.add('open'); }
+function cm(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
+});
+
+/* ── Diagnose ── */
+function pickCrop(c) {
+  document.querySelectorAll('.crop-chip').forEach(el => el.classList.remove('sel'));
+  const el = document.getElementById('cc-' + c);
+  if (el) el.classList.add('sel');
+}
+function handleFile(input) {
+  if (input.files && input.files[0]) {
+    document.getElementById('uz-icon').textContent = '✅';
+    document.getElementById('uz-h').textContent = input.files[0].name;
+    document.getElementById('uz-p').textContent = 'Image ready · Click Run Diagnosis';
+    toast('📸 Image loaded: ' + input.files[0].name);
+  }
+}
+function runDiag() {
+  const btn = document.getElementById('rb-text');
+  btn.textContent = '⏳ Analyzing...';
+  setTimeout(() => { btn.textContent = '✅ Complete!'; om('m-scan'); setTimeout(() => btn.textContent = '🔬 Run AI Diagnosis', 3e3); }, 2e3);
+}
+
+/* ── Crop Library ── */
+const CROPS = [
+  { icon:'🍅', name:'Tomato', sci:'Solanum lycopersicum', cat:'vegetable', diseases:['Early Blight','Late Blight','Mosaic Virus'], risk:'high', bg:'rgba(254,202,202,0.5)' },
+  { icon:'🥔', name:'Potato', sci:'Solanum tuberosum', cat:'vegetable', diseases:['Late Blight','Black Scurf','Ring Rot'], risk:'high', bg:'rgba(254,240,138,0.5)' },
+  { icon:'🌾', name:'Wheat', sci:'Triticum aestivum', cat:'grain', diseases:['Rust','Powdery Mildew','Smut'], risk:'medium', bg:'rgba(254,240,138,0.4)' },
+  { icon:'🌾', name:'Rice', sci:'Oryza sativa', cat:'grain', diseases:['Blast','Sheath Blight','BPH'], risk:'medium', bg:'rgba(187,247,208,0.5)' },
+  { icon:'🌽', name:'Maize', sci:'Zea mays', cat:'grain', diseases:['Leaf Blight','Rust','Downy Mildew'], risk:'low', bg:'rgba(254,240,138,0.5)' },
+  { icon:'🪴', name:'Cotton', sci:'Gossypium hirsutum', cat:'cash', diseases:['Bollworm','Wilt','Leaf Spot'], risk:'high', bg:'rgba(191,219,254,0.5)' },
+  { icon:'🍆', name:'Brinjal', sci:'Solanum melongena', cat:'vegetable', diseases:['Fruit Borer','Cercospora','Wilt'], risk:'medium', bg:'rgba(233,213,255,0.5)' },
+  { icon:'🌿', name:'Jute', sci:'Corchorus olitorius', cat:'cash', diseases:['Stem Rot','Anthracnose','Semilooper'], risk:'low', bg:'rgba(187,247,208,0.5)' },
+  { icon:'🫑', name:'Capsicum', sci:'Capsicum annuum', cat:'vegetable', diseases:['Phytophthora Blight','Thrips','Mosaic'], risk:'medium', bg:'rgba(254,202,202,0.4)' },
+  { icon:'🧅', name:'Onion', sci:'Allium cepa', cat:'vegetable', diseases:['Purple Blotch','Basal Rot','Stemphylium'], risk:'medium', bg:'rgba(254,240,138,0.4)' },
+  { icon:'🌱', name:'Mustard', sci:'Brassica juncea', cat:'cash', diseases:['White Rust','Alternaria','Aphids'], risk:'low', bg:'rgba(253,224,71,0.35)' },
+  { icon:'🫘', name:'Soybean', sci:'Glycine max', cat:'grain', diseases:['Soybean Rust','Leaf Scorch','Bacterial Pustule'], risk:'low', bg:'rgba(187,247,208,0.5)' },
+];
+let libCat = 'all';
+function renderLib(q = '') {
+  const grid = document.getElementById('lib-grid');
+  if (!grid) return;
+  const f = CROPS.filter(c => (libCat === 'all' || c.cat === libCat) && (!q || c.name.toLowerCase().includes(q.toLowerCase()) || c.diseases.some(d => d.toLowerCase().includes(q.toLowerCase()))));
+  grid.innerHTML = f.map(c => `
+    <div class="crop-card" onclick="showCrop(${JSON.stringify(c).replace(/"/g,'&quot;')})" style="animation-delay:${Math.random()*.3}s">
+      <div class="crop-card-img" style="background:${c.bg}">${c.icon}</div>
+      <div class="crop-card-body">
+        <div class="crop-card-name">${c.name}</div>
+        <div class="crop-card-sci">${c.sci}</div>
+        <div class="crop-card-tags">${c.diseases.slice(0,2).map(d=>`<span class="crop-tag${c.risk==='high'?' d':''}">${d}</span>`).join('')}${c.diseases.length>2?`<span class="crop-tag">+${c.diseases.length-2}</span>`:''}</div>
+        <div class="risk-line"><div class="rdot" style="background:${c.risk==='high'?'#ef4444':c.risk==='medium'?'#f59e0b':'#22c55e'}"></div>${c.risk.charAt(0).toUpperCase()+c.risk.slice(1)} Risk</div>
+      </div>
+    </div>`).join('');
+}
+function filterLib(v) { renderLib(v); }
+function libFilter(el, cat) {
+  document.querySelectorAll('.lib-filter').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  libCat = cat;
+  renderLib();
+}
+function showCrop(c) {
+  document.getElementById('crop-modal-body').innerHTML = `
+    <div style="font-size:2.8rem;margin-bottom:10px">${c.icon}</div>
+    <div class="modal-title">${c.name}</div>
+    <div class="modal-sub">${c.sci} · ${c.cat.charAt(0).toUpperCase()+c.cat.slice(1)} Crop</div>
+    <div class="modal-section-title">Common Diseases (${c.diseases.length})</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
+      ${c.diseases.map(d=>`<div style="background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.06);border-radius:12px;padding:12px 15px;cursor:pointer;transition:all .2s;font-size:.84rem;font-weight:500;color:var(--text-body)" onmouseenter="this.style.background='rgba(74,222,128,.08)';this.style.borderColor='rgba(74,222,128,.35)'" onmouseleave="this.style.background='rgba(0,0,0,.03)';this.style.borderColor='rgba(0,0,0,.06)'" onclick="cm('m-crop');go('diagnose');toast('🔬 Loading ${d} diagnosis guide...')">🦠 ${d}</div>`).join('')}
+    </div>
+    <button class="modal-action-btn" onclick="cm('m-crop');go('diagnose');toast('📷 Crop set to ${c.name} — ready to scan!')">🔬 Diagnose ${c.name}</button>`;
+  om('m-crop');
+}
+
+/* ── Schedule ── */
+function toggleSch(row) {
+  const chk = row.querySelector('.sch-check');
+  const bdg = row.querySelector('.sch-badge');
+  chk.classList.toggle('done');
+  if (chk.classList.contains('done')) { chk.textContent='✓'; bdg.classList.remove('upcoming'); bdg.classList.add('today'); toast('✅ Marked complete — great work!'); }
+  else { chk.textContent=''; bdg.classList.add('upcoming'); bdg.classList.remove('today'); }
+}
+
+/* ── Settings tab ── */
+function stab(el) {
+  document.querySelectorAll('.settings-nav-item').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  toast('⚙️ ' + el.textContent.trim());
+}
+
+/* ── Stat bar animation ── */
+const sbObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.style.animationPlayState = 'running'; });
+});
+document.querySelectorAll('.stat-fill').forEach(f => { f.style.animationPlayState='paused'; sbObs.observe(f); });
+
+/* ── Tile 3D tilt ── */
+document.querySelectorAll('.tile, .adv-card, .crop-card, .tile-scan-new, .tile-alert').forEach(tile => {
+  tile.addEventListener('mousemove', e => {
+    const r = tile.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top)  / r.height - 0.5;
+    tile.style.transform = `translateY(-3px) perspective(700px) rotateX(${-y*3.5}deg) rotateY(${x*3.5}deg)`;
+  });
+  tile.addEventListener('mouseleave', () => { tile.style.transform = ''; });
+});
+</script>
+</body>
+</html>
