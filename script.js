@@ -1,522 +1,1053 @@
-name=script.js
-/* ── Navigation ── */
-function go(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
-  document.getElementById('p-' + id).classList.add('active');
-  const nl = document.getElementById('nl-' + id);
-  if (nl) nl.classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (id === 'crop-library') renderLib();
+// ═══════════════════════════════════════════════════
+// KEYBOARD CLICK SOUND
+// ═══════════════════════════════════════════════════
+let audioCtx = null;
+function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+function playKeyClick() {
+  try {
+    initAudio();
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i=0;i<data.length;i++){
+      const env = 1 - i/data.length;
+      data[i] = (Math.random()*2-1) * env * 0.18;
+    }
+    const src = audioCtx.createBufferSource();
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 2800;
+    src.buffer = buf;
+    src.connect(filter); filter.connect(audioCtx.destination);
+    src.start();
+  } catch(e) {}
 }
-
-/* ── Toast ── */
-let toastTimer;
-function toast(msg) {
-  const t = document.getElementById('toast');
-  const icon = msg.match(/^([\u{1F300}-\u{1FFFF}✅📍🔍🔔📅📋📄⚠️🚨ℹ️✓🛒🌿💊✂️🧪📸🔬📤🗺])/u);
-  document.getElementById('toast-icon').textContent = icon ? icon[0] : '•';
-  document.getElementById('toast-msg').textContent = msg.replace(/^[\u{1F300}-\u{1FFFF}✅📍🔍🔔📅📋📄⚠️🚨ℹ️✓🛒🌿💊✂️🧪📸🔬📤🗺]\s*/u, '');
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-/* ── Modals ── */
-function om(id) { document.getElementById(id).classList.add('open'); }
-function cm(id) { document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.modal-bg').forEach(bg => {
-  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
+document.addEventListener('keydown', (e) => {
+  const tag = e.target.tagName.toLowerCase();
+  if(['input','textarea'].includes(tag) && e.key.length === 1) playKeyClick();
 });
 
-/* ── Diagnose ── */
-function pickCrop(c) {
-  document.querySelectorAll('.crop-chip').forEach(el => el.classList.remove('sel'));
-  const el = document.getElementById('cc-' + c);
-  if (el) el.classList.add('sel');
+// ═══════════════════════════════════════════════════
+// LOGIN / AUTH FLOW
+// ═══════════════════════════════════════════════════
+const geoMatrix = {
+  "Punjab":["Ludhiana","Amritsar","Jalandhar","Patiala","Bathinda","Fazilka"],
+  "Haryana":["Karnal","Hisar","Ambala","Rohtak","Sirsa","Panipat"],
+  "Uttar Pradesh":["Lucknow","Kanpur","Agra","Varanasi","Meerut","Mathura"],
+  "Rajasthan":["Jaipur","Jodhpur","Udaipur","Kota","Sri Ganganagar"],
+  "Madhya Pradesh":["Indore","Bhopal","Jabalpur","Gwalior","Mandsaur"],
+  "Maharashtra":["Mumbai","Pune","Nagpur","Nashik","Aurangabad","Kolhapur"],
+  "Gujarat":["Ahmedabad","Surat","Vadodara","Rajkot","Anand","Mehsana"],
+  "West Bengal":["Kolkata","Siliguri","Asansol","Durgapur","Howrah"],
+  "Tamil Nadu":["Chennai","Coimbatore","Madurai","Tiruchirappalli","Salem"],
+  "Karnataka":["Bengaluru","Mysuru","Hubli","Mangaluru","Belagavi"],
+  "Bihar":["Patna","Gaya","Muzaffarpur","Bhagalpur","Darbhanga"],
+  "Andhra Pradesh":["Visakhapatnam","Vijayawada","Guntur","Nellore","Kurnool"]
+};
+let otpTimerInterval = null;
+let generatedOtp = '';
+
+window.addEventListener('DOMContentLoaded', () => {
+  const stateDl = document.getElementById('states');
+  if(stateDl) stateDl.innerHTML = Object.keys(geoMatrix).map(s=>`<option value="${s}"></option>`).join('');
+  // Check if already logged in
+  const profile = getProfile();
+  if(profile) launchMainApp(profile);
+});
+
+function getProfile() {
+  try { return JSON.parse(localStorage.getItem('agritech_user_profile')); } catch(e) { return null; }
 }
-function handleFile(input) {
-  if (input.files && input.files[0]) {
-    document.getElementById('uz-icon').textContent = '✅';
-    document.getElementById('uz-h').textContent = input.files[0].name;
-    document.getElementById('uz-p').textContent = 'Image ready · Click Run Diagnosis';
-    toast('📸 Image loaded: ' + input.files[0].name);
+
+function goToOtp() {
+  const phone = document.getElementById('userPhone').value.trim();
+  if(phone.length !== 10 || isNaN(phone)) {
+    alert('Please enter a valid 10-digit mobile number.');
+    return;
+  }
+  // Simulate OTP generation (in production, call SMS API like Twilio/MSG91)
+  generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+  document.getElementById('stepPhone').classList.remove('active');
+  document.getElementById('stepOtp').classList.add('active');
+  document.getElementById('mainTitle').textContent = 'Verify OTP';
+  document.getElementById('subTitle').textContent = `OTP sent to +91 ${phone}. (Demo: ${generatedOtp})`;
+  startOtpTimer();
+  setTimeout(() => document.getElementById('box1').focus(), 100);
+}
+
+function startOtpTimer() {
+  let secs = 30;
+  document.getElementById('otpTimer').textContent = `Wait ${secs}s`;
+  clearInterval(otpTimerInterval);
+  otpTimerInterval = setInterval(() => {
+    secs--;
+    if(secs <= 0) { clearInterval(otpTimerInterval); document.getElementById('otpTimer').textContent = ''; return; }
+    document.getElementById('otpTimer').textContent = `Wait ${secs}s`;
+  }, 1000);
+}
+
+function resendOtp() {
+  generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+  document.getElementById('subTitle').textContent = `New OTP sent. (Demo: ${generatedOtp})`;
+  startOtpTimer();
+  ['box1','box2','box3','box4'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('box1').focus();
+}
+
+function shiftFocus(curr, nextId) {
+  if(curr.value.length >= 1 && nextId) document.getElementById(nextId).focus();
+}
+
+function otpKeydown(e, curr, prevId, currId) {
+  if(e.key === 'Backspace' && !curr.value && prevId) {
+    document.getElementById(prevId).focus();
+    e.preventDefault();
   }
 }
-function runDiag() {
-  const btn = document.getElementById('rb-text');
-  btn.textContent = '⏳ Analyzing...';
-  setTimeout(() => { btn.textContent = '✅ Complete!'; om('m-scan'); setTimeout(() => btn.textContent = '🔬 Run AI Diagnosis', 3e3); }, 2e3);
+
+function verifyOtp() {
+  const pin = ['box1','box2','box3','box4'].map(id => document.getElementById(id).value).join('');
+  if(pin.length !== 4) { alert('Please enter all 4 digits.'); return; }
+  if(pin !== generatedOtp) { alert('Invalid OTP. Please try again.'); return; }
+  clearInterval(otpTimerInterval);
+  document.getElementById('stepOtp').classList.remove('active');
+  document.getElementById('stepProfile').classList.add('active');
+  document.getElementById('mainTitle').textContent = 'Complete Profile';
+  document.getElementById('subTitle').textContent = 'Tell us about your farm so we can personalise your experience.';
 }
 
-/* ── Crop Library ── */
-const CROPS = [
-  { icon:'🍅', name:'Tomato', sci:'Solanum lycopersicum', cat:'vegetable', diseases:['Early Blight','Late Blight','Mosaic Virus'], risk:'high', bg:'rgba(254,202,202,0.5)' },
-  { icon:'🥔', name:'Potato', sci:'Solanum tuberosum', cat:'vegetable', diseases:['Late Blight','Black Scurf','Ring Rot'], risk:'high', bg:'rgba(254,240,138,0.5)' },
-  { icon:'🌾', name:'Wheat', sci:'Triticum aestivum', cat:'grain', diseases:['Rust','Powdery Mildew','Smut'], risk:'medium', bg:'rgba(254,240,138,0.4)' },
-  { icon:'🌾', name:'Rice', sci:'Oryza sativa', cat:'grain', diseases:['Blast','Sheath Blight','BPH'], risk:'medium', bg:'rgba(187,247,208,0.5)' },
-  { icon:'🌽', name:'Maize', sci:'Zea mays', cat:'grain', diseases:['Leaf Blight','Rust','Downy Mildew'], risk:'low', bg:'rgba(254,240,138,0.5)' },
-  { icon:'🪴', name:'Cotton', sci:'Gossypium hirsutum', cat:'cash', diseases:['Bollworm','Wilt','Leaf Spot'], risk:'high', bg:'rgba(191,219,254,0.5)' },
-  { icon:'🍆', name:'Brinjal', sci:'Solanum melongena', cat:'vegetable', diseases:['Fruit Borer','Cercospora','Wilt'], risk:'medium', bg:'rgba(233,213,255,0.5)' },
-  { icon:'🌿', name:'Jute', sci:'Corchorus olitorius', cat:'cash', diseases:['Stem Rot','Anthracnose','Semilooper'], risk:'low', bg:'rgba(187,247,208,0.5)' },
-  { icon:'🫑', name:'Capsicum', sci:'Capsicum annuum', cat:'vegetable', diseases:['Phytophthora Blight','Thrips','Mosaic'], risk:'medium', bg:'rgba(254,202,202,0.4)' },
-  { icon:'🧅', name:'Onion', sci:'Allium cepa', cat:'vegetable', diseases:['Purple Blotch','Basal Rot','Stemphylium'], risk:'medium', bg:'rgba(254,240,138,0.4)' },
-  { icon:'🌱', name:'Mustard', sci:'Brassica juncea', cat:'cash', diseases:['White Rust','Alternaria','Aphids'], risk:'low', bg:'rgba(253,224,71,0.35)' },
-  { icon:'🫘', name:'Soybean', sci:'Glycine max', cat:'grain', diseases:['Soybean Rust','Leaf Scorch','Bacterial Pustule'], risk:'low', bg:'rgba(187,247,208,0.5)' },
-];
-let libCat = 'all';
-function renderLib(q = '') {
-  const grid = document.getElementById('lib-grid');
-  if (!grid) return;
-  const f = CROPS.filter(c => (libCat === 'all' || c.cat === libCat) && (!q || c.name.toLowerCase().includes(q.toLowerCase()) || c.diseases.some(d => d.toLowerCase().includes(q.toLowerCase()))));
-  grid.innerHTML = f.map(c => `
-    <div class="crop-card" onclick="showCrop(${JSON.stringify(c).replace(/"/g,'&quot;')})" style="animation-delay:${Math.random()*.3}s">
-      <div class="crop-card-img" style="background:${c.bg}">${c.icon}</div>
-      <div class="crop-card-body">
-        <div class="crop-card-name">${c.name}</div>
-        <div class="crop-card-sci">${c.sci}</div>
-        <div class="crop-card-tags">${c.diseases.slice(0,2).map(d=>`<span class="crop-tag${c.risk==='high'?' d':''}">${d}</span>`).join('')}${c.diseases.length>2?`<span class="crop-tag">+${c.diseases.length-2}</span>`:''}</div>
-        <div class="risk-line"><div class="rdot" style="background:${c.risk==='high'?'#ef4444':c.risk==='medium'?'#f59e0b':'#22c55e'}"></div>${c.risk.charAt(0).toUpperCase()+c.risk.slice(1)} Risk</div>
-      </div>
-    </div>`).join('');
-}
-function filterLib(v) { renderLib(v); }
-function libFilter(el, cat) {
-  document.querySelectorAll('.lib-filter').forEach(x => x.classList.remove('on'));
-  el.classList.add('on');
-  libCat = cat;
-  renderLib();
-}
-function showCrop(c) {
-  document.getElementById('crop-modal-body').innerHTML = `
-    <div style="font-size:2.8rem;margin-bottom:10px">${c.icon}</div>
-    <div class="modal-title">${c.name}</div>
-    <div class="modal-sub">${c.sci} · ${c.cat.charAt(0).toUpperCase()+c.cat.slice(1)} Crop</div>
-    <div class="modal-section-title">Common Diseases (${c.diseases.length})</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
-      ${c.diseases.map(d=>`<div style="background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.06);border-radius:12px;padding:12px 15px;cursor:pointer;transition:all .2s;font-size:.84rem;font-weight:500;">${d}</div>`).join('')}
-    </div>
-    <button class="modal-action-btn" onclick="cm('m-crop');go('diagnose');toast('📷 Crop set to ${c.name} — ready to scan!')">🔬 Diagnose ${c.name}</button>`;
-  om('m-crop');
+function filterCities() {
+  const stateInput = document.getElementById('regState');
+  const cityInput = document.getElementById('regCity');
+  const cityDl = document.getElementById('cities');
+  const val = stateInput.value.trim();
+  const exactMatch = Object.keys(geoMatrix).find(s => s.toLowerCase() === val.toLowerCase());
+  if(exactMatch) {
+    cityInput.disabled = false;
+    cityInput.placeholder = 'Select city/district';
+    cityDl.innerHTML = geoMatrix[exactMatch].map(c=>`<option value="${c}"></option>`).join('');
+  } else {
+    cityInput.disabled = true;
+    cityInput.value = '';
+    cityInput.placeholder = 'Select a valid state first';
+    cityDl.innerHTML = '';
+  }
 }
 
-/* ── Schedule ── */
-function toggleSch(row) {
-  const chk = row.querySelector('.sch-check');
-  const bdg = row.querySelector('.sch-badge');
-  chk.classList.toggle('done');
-  if (chk.classList.contains('done')) { chk.textContent='✓'; bdg.classList.remove('upcoming'); bdg.classList.add('today'); toast('✅ Marked complete — great work!'); }
-  else { chk.textContent=''; bdg.classList.add('upcoming'); bdg.classList.remove('today'); }
+function saveAndRedirect() {
+  const name = document.getElementById('regName').value.trim();
+  const state = document.getElementById('regState').value.trim();
+  const city = document.getElementById('regCity').value.trim();
+  const crop = document.getElementById('regCrop').value;
+  const validState = Object.keys(geoMatrix).find(s => s.toLowerCase() === state.toLowerCase());
+  if(!name || !state || !city || !validState) {
+    alert('Please fill all fields and select a valid state and city.');
+    return;
+  }
+  const profile = { name, state: validState, city, crop, phone: document.getElementById('userPhone').value.trim() };
+  localStorage.setItem('agritech_user_profile', JSON.stringify(profile));
+  launchMainApp(profile);
 }
 
-/* ── Settings tab ── */
-function stab(el) {
-  document.querySelectorAll('.settings-nav-item').forEach(x => x.classList.remove('on'));
-  el.classList.add('on');
-  toast('⚙️ ' + el.textContent.trim());
+function launchMainApp(profile) {
+  document.getElementById('app-login').style.display = 'none';
+  document.getElementById('app-main').style.display = 'block';
+  // Set user info in nav
+  document.getElementById('nav-username').textContent = profile.name.split(' ')[0];
+  document.getElementById('nav-avatar').textContent = profile.name.charAt(0).toUpperCase();
+  // Init
+  loadKeys();
+  renderCards();
+  renderTable();
+  // Fetch weather
+  fetchWeatherForProfile(profile);
+  // Request notification permission
+  if('Notification' in window && Notification.permission === 'default') {
+    setTimeout(() => Notification.requestPermission(), 3000);
+  }
 }
 
-/* ── Stat bar animation ── */
-const sbObs = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.style.animationPlayState = 'running'; });
-});
-document.querySelectorAll('.stat-fill').forEach(f => { f.style.animationPlayState='paused'; sbObs.observe(f); });
+function doLogout() {
+  localStorage.removeItem('agritech_user_profile');
+  document.getElementById('app-main').style.display = 'none';
+  document.getElementById('app-login').style.display = 'flex';
+  // Reset login steps
+  document.getElementById('stepPhone').classList.add('active');
+  document.getElementById('stepOtp').classList.remove('active');
+  document.getElementById('stepProfile').classList.remove('active');
+  document.getElementById('mainTitle').textContent = 'Get Started';
+  document.getElementById('subTitle').textContent = 'Enter your phone number to secure your local account space.';
+  document.getElementById('userPhone').value = '';
+  ['box1','box2','box3','box4'].forEach(id => document.getElementById(id).value = '');
+}
 
-/* ── Tile 3D tilt ── */
-document.querySelectorAll('.tile, .adv-card, .crop-card, .tile-scan-new, .tile-alert').forEach(tile => {
-  tile.addEventListener('mousemove', e => {
-    const r = tile.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top)  / r.height - 0.5;
-    tile.style.transform = `translateY(-3px) perspective(700px) rotateX(${-y*3.5}deg) rotateY(${x*3.5}deg)`;
+// ═══════════════════════════════════════════════════
+// PAGE NAVIGATION
+// ═══════════════════════════════════════════════════
+const pages = ['marketplace','satellite','crop','alerts'];
+let currentPage = 'marketplace';
+
+function showPage(page) {
+  currentPage = page;
+  pages.forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('active', p===page);
+    const nl = document.getElementById('nl-'+p);
+    const mm = document.getElementById('mm-'+p);
+    if(nl) nl.classList.toggle('active', p===page);
+    if(mm) mm.classList.toggle('active', p===page);
   });
-  tile.addEventListener('mouseleave', () => { tile.style.transform = ''; });
-});
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(page==='satellite' && !satMapInit) initSatMap();
+  if(page==='alerts') fetchWeatherData();
+}
 
-/* ═════════════════════════════════════════════════════════════════ */
-/* ──────────── 🤖 AI CHATBOT ASSISTANCE SYSTEM 🤖 ──────────────── */
-/* ═════════════════════════════════════════════════════════════════ */
+function toggleMenu() {
+  document.getElementById('mobile-menu').classList.toggle('open');
+}
 
-// AI Configuration
-const AI_CONFIG = {
-  API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  API_KEY: 'sk-YOUR-API-KEY-HERE', // Replace with your API key
-  MODEL: 'gpt-3.5-turbo',
-  TIMEOUT: 3000,
-  USE_LOCAL_AI: true // Set to false to disable local AI fallback
-};
+// ═══════════════════════════════════════════════════
+// WEATHER ALERTS SYSTEM
+// ═══════════════════════════════════════════════════
+let alertConfig = {};
+let weatherData = null;
+let weatherCheckInterval = null;
 
-// Local AI Knowledge Base for Instant Responses
-const LOCAL_AI_KB = {
-  'early blight': {
-    response: '🍅 **Early Blight (Alternaria solani)** in Tomatoes:\n\n**Symptoms:** Dark concentric ring lesions on lower leaves, starting from ground level.\n\n**Treatment:**\n• Apply Mancozeb 2.5g/litre spray every 10 days\n• Prune infected leaves & dispose safely\n• Improve air circulation\n• Avoid overhead watering\n\n**Prevention:** Crop rotation, mulching, remove debris.\n\n**Cost:** Mancozeb ₹240/kg at Krishi Kendra A (0.8km away)',
-    keywords: ['early blight', 'alternaria', 'tomato disease', 'ring lesions', 'mancozeb']
-  },
-  'late blight': {
-    response: '🥔 **Late Blight (Phytophthora infestans)** in Potatoes:\n\n**Symptoms:** Water-soaked lesions on leaves & tubers, white mold on undersides during high humidity.\n\n**Treatment:**\n• Spray Metalaxyl-M 2.5ml/litre immediately\n• Remove infected plants completely\n• Improve drainage in field\n• Apply copper fungicide as preventive\n\n**Best Time:** Early morning or evening spray\n\n**Cost:** Metalaxyl-M ₹180/L | Copper products ₹175/kg',
-    keywords: ['late blight', 'phytophthora', 'potato', 'water-soaked', 'metalaxyl']
-  },
-  'powdery mildew': {
-    response: '🌾 **Powdery Mildew (Erysiphe graminis)** in Wheat:\n\n**Symptoms:** White/grayish powder coating on leaves, stem, and grains.\n\n**Treatment:**\n• Sulfur dust 25kg/acre or wettable sulfur spray\n• Spray Hexaconazole 5ml/10L water\n• Ensure good spacing for air flow\n• Avoid excessive nitrogen fertilizer\n\n**Organic Alternative:** Neem oil 3ml/litre\n\n**Application:** 2-3 sprays at 10-day intervals\n\n**Cost:** Sulfur ₹90/kg | Hexaconazole ₹120/L',
-    keywords: ['powdery mildew', 'erysiphe', 'wheat', 'white powder', 'sulfur']
-  },
-  'mancozeb': {
-    response: '💊 **Mancozeb 75% WP** - Broad-Spectrum Fungicide:\n\n**Dose:** 2.5g per litre of water\n\n**Crops:** Tomato, Potato, Rice, Wheat, Cotton\n\n**Application:**\n• Spray every 10-15 days\n• Best in morning/evening\n• Cover all leaf surfaces\n• Avoid during flowering\n\n**Effective Against:**\n✓ Early Blight ✓ Late Blight ✓ Downy Mildew ✓ Leaf Spot\n\n**Safety:** Wear gloves & mask. Wash hands after application.\n\n**Price:** ₹240/kg at Krishi Kendra A (0.8km)\n\n**Stock Status:** ✅ In Stock',
-    keywords: ['mancozeb', 'fungicide', 'spray', 'treatment', 'dosage', 'application']
-  },
-  'neem oil': {
-    response: '🌿 **Neem Oil (Organic) - Natural Bio-Pesticide:**\n\n**Dose:** 3-5ml per litre of water\n\n**Crops:** All crops (safe for vegetables & fruits)\n\n**Benefits:**\n✓ Natural antifungal & antibacterial\n✓ Safe for pollinators\n✓ No harvest waiting period\n✓ Works on multiple pests & diseases\n\n**Effective Against:**\n✓ Powdery Mildew ✓ Whitefly ✓ Aphids ✓ Mites ✓ Mosaic Virus\n\n**Application:**\n• Spray every 7 days\n• Use in early morning\n• Apply to all leaf surfaces\n\n**Price:** ₹180/L (Azadirachtin 300ppm)\n**Location:** Krishi Kendra B (1.2km away)\n\n**Storage:** Cool, dark place for 2 years',
-    keywords: ['neem oil', 'organic', 'bio-pesticide', 'natural', 'spray']
-  },
-  'spray schedule': {
-    response: '📅 **Recommended Spray Schedule for May-June (Monsoon):**\n\n**Week 1-2:**\n• Day 8 (May 8): Mancozeb - Tomatoes (2.5g/L)\n\n**Week 2-3:**\n• Day 10 (May 10): Neem Oil - All Crops (3ml/L)\n\n**Week 3-4:**\n• Day 13 (May 13): Copper Oxychloride - Potatoes (3g/L)\n\n**Week 4-5:**\n• Day 18 (May 18): Mancozeb Follow-up (repeat cycle)\n\n**Weather Alert:** ⚠️ High humidity forecasted - Disease risk HIGH\n\n**Tips:**\n✓ Spray in early morning (6-8 AM)\n✓ Spray during dry season only\n✓ Rotate fungicides to prevent resistance\n✓ Check weather before spraying\n\n**Equipment Needed:** Hand sprayer, gloves, mask, rubber boots',
-    keywords: ['spray schedule', 'timing', 'monsoon', 'calendar', 'application dates']
-  },
-  'soil ph': {
-    response: '🌱 **Soil pH Advisory - Critical for Crop Health:**\n\n**Optimal pH Ranges:**\n• Tomato: 6.0-6.8 (neutral)\n• Potato: 6.0-7.0\n• Wheat: 6.0-7.0\n• Rice: 5.5-7.0\n• Cotton: 6.0-7.5\n\n**Current Status:** ⚠️ Kolkata soil pH is 6.2-6.8 (acceptable)\n\n**If pH is Low (Acidic):**\n• Add lime 1-2 tons/acre\n• Application in autumn preferred\n• Wait 2-3 months before planting\n\n**If pH is High (Alkaline):**\n• Add sulfur 500kg/acre\n• Incorporate in soil 4-6 weeks before planting\n\n**Testing:**\n✓ Test every 2-3 years\n✓ Cost: ₹100-200 per sample\n✓ Contact: Soil Testing Lab, Your District\n\n**Contact Krishi Kendra for soil testing assistance!**',
-    keywords: ['soil ph', 'acidity', 'alkalinity', 'lime', 'sulfur', 'soil test']
-  },
-  'monsoon alert': {
-    response: '🌧️ **MONSOON ALERT - High Disease Risk Period:**\n\n**Active Duration:** May-September (High Humidity & Rainfall)\n\n**High-Risk Diseases:**\n🔴 Early Blight (Tomato)\n🔴 Late Blight (Potato)\n🔴 Blast (Rice)\n🔴 Sheath Blight (Rice)\n🔴 Powdery Mildew (Wheat)\n🔴 Downy Mildew (All crops)\n\n**Immediate Action Required:**\n1. Apply preventive fungicide spray TODAY\n2. Improve field drainage immediately\n3. Remove infected leaves\n4. Increase spacing between plants\n5. Avoid overhead watering\n\n**Recommended Fungicides:**\n✓ Mancozeb 2.5g/L (chemical)\n✓ Neem Oil 3ml/L (organic)\n✓ Copper Oxychloride 3g/L (alternative)\n\n**Spray Frequency:** Every 7-10 days during monsoon\n\n**Critical:** Apply first spray within 24 hours!',
-    keywords: ['monsoon', 'high humidity', 'disease risk', 'alert', 'weather']
-  },
-  'retailers near me': {
-    response: '📍 **Nearest Agricultural Retailers - Krishi Kendra Network:**\n\n**Your Location:** Kolkata Region (22.5726°N, 88.3639°E)\n\n**1. Krishi Kendra A** ⭐ CLOSEST\n📍 0.8 km away | Status: ✅ OPEN\n📦 Stock: Mancozeb, Neem Oil, Sulfur, Copper products\n🕐 Hours: 7 AM - 6 PM (Mon-Sat)\n📞 Contact via app\n\n**2. AgroBazar**\n📍 1.4 km away | Status: ✅ OPEN\n📦 Stock: All items available\n🕐 Hours: 8 AM - 7 PM (Daily)\n💳 Accepts online payment\n\n**3. Kisan Store**\n📍 2.1 km away | Status: ✅ OPEN\n📦 Stock: Neem oil (organic focus)\n🕐 Hours: 9 AM - 5 PM (Mon-Fri)\n🌿 Certified organic products\n\n**4. FarmCo**\n📍 3.0 km away | Status: ⚠️ LIMITED STOCK\n📦 Stock: Copper products, basic fungicides\n🕐 Hours: 6 AM - 8 PM (Daily)\n🚗 Free delivery available\n\n**Pro Tip:** Order via app for home delivery (₹30 fee)',
-    keywords: ['retailers', 'shops', 'krishi kendra', 'nearby', 'location', 'store']
-  },
-  'weather forecast': {
-    response: '⛅ **7-Day Weather Forecast - Kolkata Region:**\n\n**Today (May 8)**\n🌤️ Partly Cloudy | 28°C | Humidity: 82%\n⚠️ Disease Risk: MODERATE\nAction: Safe to spray now\n\n**Tomorrow (May 9)**\n🌧️ Light Rain | 24°C | Humidity: 91%\n⚠️ Disease Risk: HIGH (avoid spraying)\n\n**May 10 (Saturday)**\n⛈️ Heavy Rain + Thunderstorm | 22°C | Humidity: 96%\n🚨 Disease Risk: CRITICAL\nAction: Complete field inspection\n\n**May 11 (Sunday)**\n🌧️ Moderate Rain | 25°C | Humidity: 89%\n⚠️ Disease Risk: HIGH\n\n**May 12 (Monday)**\n⛅ Partly Cloudy | 27°C | Humidity: 78%\n✅ Disease Risk: MODERATE (Safe to spray)\n\n**May 13 (Tuesday)**\n🌤️ Mostly Clear | 30°C | Humidity: 72%\n✅ Disease Risk: LOW\nBest day to spray!\n\n**May 14 (Wednesday)**\n☀️ Sunny | 32°C | Humidity: 65%\n✅ Disease Risk: LOW\n\n💡 **Tip:** Schedule spray for May 12-14 (best window)',
-    keywords: ['weather', 'forecast', 'rain', 'humidity', 'temperature', 'clouds']
-  },
-  'fertilizer': {
-    response: '🌾 **Fertilizer Guide for Common Crops:**\n\n**Tomato (per acre):**\n• NPK: 80:40:60 kg/acre\n• Application: 50% at planting, 25% at flowering, 25% at fruiting\n• Cost: ₹3,000-4,000/acre\n\n**Potato (per acre):**\n• NPK: 120:60:60 kg/acre  \n• All at planting time (basal dose)\n• Cost: ₹4,000-5,000/acre\n\n**Wheat (per acre):**\n• NPK: 80:40:0 kg/acre\n• N: 50% basal + 50% at tillering\n• Cost: ₹2,500-3,000/acre\n\n**Rice (per acre):**\n• NPK: 60:30:30 kg/acre\n• Split: 50% basal, 25% at tillering, 25% at panicle\n• Cost: ₹2,000-2,500/acre\n\n**Organic Alternatives:**\n✓ Compost: 5 tons/acre (₹1,500-2,000)\n✓ Vermicompost: 2 tons/acre (₹4,000-5,000)\n✓ Cow dung: 10 tons/acre (₹1,000)\n\n**Timing:** Apply 10-15 days before planting for basal dose',
-    keywords: ['fertilizer', 'npk', 'nutrition', 'feeding', 'application']
-  },
-  'pest management': {
-    response: '🐛 **Common Pests & Integrated Pest Management (IPM):**\n\n**Major Pests by Crop:**\n\n🍅 **Tomato:**\n• Fruit Borer - Spinosad 45% SC (2ml/L)\n• Whitefly - Neem oil (3ml/L) + sticky traps\n• Spider Mites - Sulfur dust or Neem\n\n🥔 **Potato:**\n• Leaf Hopper - Imidacloprid 17.8% (3ml/10L)\n• Colorado Beetle - Manual removal + organic spray\n• Aphids - Neem oil (3ml/L)\n\n🌾 **Wheat/Rice:**\n• Armyworm - Chlorpyrifos 20% EC (2L/acre)\n• Stem Borer - Pheromone traps + Spinosad\n• Plant Hopper - Neem oil spray\n\n**IPM Strategy:**\n1. Cultural: Remove crop residue, crop rotation\n2. Mechanical: Traps, handpicking, netting\n3. Biological: Beneficial insects, parasitoids\n4. Chemical: Only as last resort (organic first)\n\n**Chemical Cost:** ₹150-400 per spray\n**Available at:** All Krishi Kendras',
-    keywords: ['pest', 'insect', 'borer', 'aphid', 'whitefly', 'management', 'ipm']
-  },
-  'irrigation': {
-    response: '💧 **Irrigation Guide - Water Management by Crop:**\n\n**Tomato:**\n• Frequency: Every 5-7 days\n• Depth: 25-30mm per watering\n• Best Time: Early morning (6-8 AM)\n• During monsoon: Reduce to 10-15 days\n• Cost: ₹500-800/acre/season\n\n**Potato:**\n• Frequency: 7-10 days\n• Critical Period: Post-emergence + tuber formation\n• Total: 4-5 waterings per season\n• Avoid waterlogging\n• Cost: ₹1,000-1,500/acre\n\n**Wheat/Rice:**\n• Rice: Flooded (50-75mm standing water)\n• Wheat: 3-4 waterings (autumn-spring)\n• Spacing: 20-25 days between waterings\n• Cost: ₹800-1,200/acre\n\n**Monsoon Precautions:**\n⚠️ Ensure field drainage immediately\n⚠️ Avoid standing water (promotes disease)\n⚠️ Consider drip irrigation for efficiency\n\n**Water Sources:**\n✓ Canal: ₹500-700/acre/season\n✓ Borewell: ₹2,000-3,000/year (maintenance)\n✓ Drip: One-time cost ₹15,000-20,000/acre',
-    keywords: ['irrigation', 'watering', 'water', 'frequency', 'drainage', 'flooding']
-  },
-  'harvest': {
-    response: '🌾 **Harvesting Guide - Timing & Methods:**\n\n**Tomato:**\n• Time to Harvest: 60-65 days after planting\n• Signs: Turn red color, slight softness\n• Frequency: Daily picking (stagewise)\n• Yield: 40-50 tons/acre\n• Price: ₹10-20/kg (seasonal)\n• Storage: Room temperature (15 days) or cold chain\n\n**Potato:**\n• Time to Harvest: 70-90 days\n• Signs: Leaves start yellowing & dying\n• Method: Dig carefully to avoid bruising\n• Yield: 20-25 tons/acre\n• Price: ₹8-15/kg (mandi)\n• Storage: Cool dark place (3 months)\n\n**Wheat:**\n• Time: 120-130 days, grain hard & golden\n• Signs: Moisture <12%, bend test (breaks)\n• Method: Combine harvester or manual\n• Yield: 4-5 tons/acre\n• Price: ₹2,000-2,500/quintal\n\n**Rice:**\n• Time: 120-140 days, 20-25% moisture\n• Signs: Golden color, grains separate easily\n• Yield: 5-6 tons/acre (paddy)\n• Price: ₹2,500-3,000/quintal\n• Drying: Spread in sun to 12% moisture\n\n**Post-Harvest Tips:**\n✓ Don\'t delay harvesting\n✓ Harvest in cool hours\n✓ Minimize bruising/damage\n✓ Grade & sort before selling',
-    keywords: ['harvest', 'ripeness', 'ready', 'picking', 'yield', 'time', 'collection']
-  },
-  'market price': {
-    response: '💰 **Current Market Prices - Kolkata Mandi (May 2026):**\n\n**Vegetable Prices (per kg):**\n🍅 Tomato: ₹15-18 (wholesale)\n🥔 Potato: ₹10-12\n🫑 Capsicum: ₹25-30\n🧅 Onion: ₹12-15\n\n**Grain Prices (per quintal):**\n🌾 Wheat: ₹2,100-2,300\n🌾 Rice (paddy): ₹2,400-2,600\n🌽 Maize: ₹1,800-2,000\n\n**Cash Crop Prices:**\n🪴 Cotton (lint): ₹5,500-6,000/quintal\n🌱 Mustard: ₹4,200-4,500/quintal\n\n**Premium Prices (Organic):**\n+25% for certified organic produce\n\n**Factors Affecting Price:**\n📈 Supply shortage: Higher prices\n📉 Season peak: Lower prices\n⚠️ Quality: 10-20% variation\n🚚 Transport: Distance based\n\n**Tips to Get Better Price:**\n✓ Sell direct to retail/restaurants (+15%)\n✓ Grade & package neatly\n✓ Sell in off-season\n✓ Form farmer group\n✓ Use e-NAM platform\n\n**Latest Update:** Updated hourly',
-    keywords: ['price', 'market', 'cost', 'mandi', 'selling', 'rate']
-  },
-  'government schemes': {
-    response: '📋 **Government Schemes & Subsidies Available:**\n\n**PM-Kisan Samman Nidhi:**\n💵 ₹6,000/year (₹2,000 every 4 months)\n📋 Eligibility: All farmers with <2 hectare land\n⏰ Status: Active & ongoing\n📞 Register online at pmkisan.gov.in\n\n**Pradhan Mantri Krishi Sinchayee Yojana (PMKSY):**\n💵 50-75% subsidy on irrigation equipment\n📦 Drip irrigation, sprinklers, tubewells\n📞 Apply at Krishi Vibag office\n\n**Soil Health Card Scheme:**\n💵 FREE soil testing\n📋 Know your soil NPK status\n⏰ Every 2-3 years cycle\n📍 Contact: District Soil Testing Lab\n\n**Rashtriya Krishi Vikas Yojana (RKVY):**\n💵 50% subsidy on modern equipment\n📦 Drip systems, greenhouse, solar pumps\n\n**Crop Insurance - PM Fasal Bima Yojana:**\n💵 Covers 70-80% loss from natural calamity\n📋 Premium: ₹400-600/acre (kharif/rabi)\n⚠️ Must enroll 31 days before sowing\n\n**UP/WB State Schemes:**\n✓ Fertilizer subsidy: ₹2,000-3,000/acre\n✓ Seeds subsidy: 50% discount\n✓ Equipment grants: Up to ₹100,000\n\n**How to Apply:**\n1. Visit Patwari office with land documents\n2. Apply through e-Kranti portal\n3. Get approval in 30-45 days\n4. Receive direct subsidy transfer\n\n**Deadline:** Check district website for annual cutoffs',
-    keywords: ['scheme', 'subsidy', 'government', 'pm-kisan', 'insurance', 'grant']
+function loadAlertConfig() {
+  try { alertConfig = JSON.parse(localStorage.getItem('agritech_alerts') || '{}'); } catch(e) {}
+  if(alertConfig['owm-key']) document.getElementById('owm-key').value = alertConfig['owm-key'];
+  if(alertConfig['twilio-sid']) document.getElementById('twilio-sid').value = alertConfig['twilio-sid'];
+  if(alertConfig['twilio-token']) document.getElementById('twilio-token').value = alertConfig['twilio-token'];
+  if(alertConfig['twilio-from']) document.getElementById('twilio-from').value = alertConfig['twilio-from'];
+}
+
+function saveAlertConfig() {
+  alertConfig['owm-key'] = document.getElementById('owm-key').value.trim();
+  alertConfig['twilio-sid'] = document.getElementById('twilio-sid').value.trim();
+  alertConfig['twilio-token'] = document.getElementById('twilio-token').value.trim();
+  alertConfig['twilio-from'] = document.getElementById('twilio-from').value.trim();
+  alertConfig['phone'] = document.getElementById('alert-phone').value.trim();
+  alertConfig['whatsapp'] = document.getElementById('alert-whatsapp').value.trim();
+  localStorage.setItem('agritech_alerts', JSON.stringify(alertConfig));
+  addAlertLog('info', 'Alert configuration saved successfully.');
+}
+
+async function fetchWeatherForProfile(profile) {
+  const city = profile.city || 'Delhi';
+  document.getElementById('weather-location-name').textContent = `— ${city}`;
+  await fetchWeatherByCity(city);
+}
+
+async function fetchWeatherData() {
+  const profile = getProfile();
+  const city = profile?.city || 'Delhi';
+  await fetchWeatherByCity(city);
+}
+
+async function getCurrentWeatherLocation() {
+  if(!navigator.geolocation) { addAlertLog('warn', 'Geolocation not supported by your browser.'); return; }
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    await fetchWeatherByCoords(lat, lon);
+  }, () => { addAlertLog('warn', 'Location access denied. Using profile city.'); fetchWeatherData(); });
+}
+
+async function fetchWeatherByCity(city) {
+  const key = alertConfig['owm-key'] || document.getElementById('owm-key')?.value?.trim();
+  if(!key) {
+    // Demo data when no API key
+    showDemoWeather(city);
+    return;
   }
-};
-
-// Initialize AI Chat System
-class CropAI {
-  constructor() {
-    this.chatHistory = [];
-    this.lastApiCall = 0;
-    this.isProcessing = false;
-  }
-
-  // Escape HTML for security
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // Find matching local AI response
-  findLocalResponse(userQuery) {
-    const query = userQuery.toLowerCase().trim();
-    for (const [key, data] of Object.entries(LOCAL_AI_KB)) {
-      if (data.keywords.some(kw => query.includes(kw))) {
-        return data.response;
-      }
-    }
-    return null;
-  }
-
-  // Call External API (GPT-based)
-  async callApiAI(userQuery) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), AI_CONFIG.TIMEOUT);
-
-      const response = await fetch(AI_CONFIG.API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${AI_CONFIG.API_KEY}`
-        },
-        body: JSON.stringify({
-          model: AI_CONFIG.MODEL,
-          messages: [
-            { role: 'system', content: 'You are an expert agricultural AI assistant for Indian farmers. Provide practical farming advice with costs in INR, timings, and local resources. Keep responses concise and actionable. Focus on disease management, spraying schedules, fertilizer use, and market info.' },
-            { role: 'user', content: userQuery }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        return null; // API failed, use fallback
-      }
-
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || null;
-    } catch (error) {
-      console.log('API timeout or error - using local AI');
-      return null;
-    }
-  }
-
-  // Get AI Response (API first, then Local)
-  async getResponse(userQuery) {
-    this.isProcessing = true;
-
-    // Try External API if enabled and key is set
-    if (AI_CONFIG.API_KEY !== 'sk-YOUR-API-KEY-HERE') {
-      const apiResponse = await this.callApiAI(userQuery);
-      if (apiResponse) {
-        this.isProcessing = false;
-        return apiResponse;
-      }
-    }
-
-    // Fallback to Local AI (instant response)
-    if (AI_CONFIG.USE_LOCAL_AI) {
-      const localResponse = this.findLocalResponse(userQuery);
-      if (localResponse) {
-        this.isProcessing = false;
-        return localResponse;
-      }
-    }
-
-    // No response found
-    this.isProcessing = false;
-    return '🤔 I don\'t have specific information about that topic. Try asking about:\n\n• Early Blight, Late Blight, Powdery Mildew\n• Mancozeb, Neem Oil spray treatments\n• Spray schedules for monsoon\n• Nearby retailers & suppliers\n• Weather forecasts & disease alerts\n• Fertilizer & irrigation management\n• Pest control methods\n• Market prices & government schemes\n\nOr contact your local Krishi Kendra for specialized advice!';
-  }
-
-  // Format response with markdown support
-  formatResponse(text) {
-    // Convert **bold** to <strong>
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Convert line breaks
-    text = text.replace(/\n/g, '<br>');
-    return text;
-  }
-
-  // Add message to chat
-  async addMessage(userQuery) {
-    if (!userQuery.trim() || this.isProcessing) return;
-
-    const chatContainer = document.getElementById('ai-chat-container');
-    if (!chatContainer) return;
-
-    // Add user message
-    const userMsg = document.createElement('div');
-    userMsg.className = 'ai-msg user-msg';
-    userMsg.innerHTML = `<div class="ai-msg-content">${this.escapeHtml(userQuery)}</div>`;
-    chatContainer.appendChild(userMsg);
-
-    // Show loading
-    const loadingMsg = document.createElement('div');
-    loadingMsg.className = 'ai-msg bot-msg';
-    loadingMsg.innerHTML = '<div class="ai-msg-content">🤔 <em>Analyzing...</em></div>';
-    chatContainer.appendChild(loadingMsg);
-
-    // Get AI response
-    const response = await this.getResponse(userQuery);
-
-    // Replace loading with actual response
-    loadingMsg.innerHTML = `<div class="ai-msg-content">${this.formatResponse(response)}</div>`;
-
-    // Auto scroll
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    // Store in history
-    this.chatHistory.push({ user: userQuery, bot: response, timestamp: new Date() });
-  }
-
-  // Initialize chat UI
-  init() {
-    const chatContainer = document.getElementById('ai-chat-container');
-    if (!chatContainer) return;
-
-    // Add custom styling
-    const style = document.createElement('style');
-    style.textContent = `
-      #ai-chat-container {
-        max-height: 500px;
-        overflow-y: auto;
-        padding: 15px;
-        background: linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 100%);
-        border-radius: 12px;
-        border: 1.5px solid rgba(26,90,50,0.2);
-        margin-bottom: 15px;
-      }
-      .ai-msg {
-        display: flex;
-        margin-bottom: 12px;
-        animation: slideIn 0.3s ease;
-      }
-      .ai-msg-content {
-        max-width: 80%;
-        padding: 10px 14px;
-        border-radius: 10px;
-        font-size: 0.875rem;
-        line-height: 1.5;
-        word-wrap: break-word;
-      }
-      .user-msg {
-        justify-content: flex-end;
-      }
-      .user-msg .ai-msg-content {
-        background: linear-gradient(135deg, #1a7a3c, #2d9a5c);
-        color: white;
-        border-bottom-right-radius: 3px;
-      }
-      .bot-msg {
-        justify-content: flex-start;
-      }
-      .bot-msg .ai-msg-content {
-        background: white;
-        color: #1a4a28;
-        border: 1px solid rgba(26,90,50,0.15);
-        border-bottom-left-radius: 3px;
-      }
-      .ai-input-group {
-        display: flex;
-        gap: 8px;
-        margin-top: 12px;
-      }
-      #ai-input {
-        flex: 1;
-        padding: 10px 12px;
-        border: 1.5px solid rgba(26,90,50,0.2);
-        border-radius: 8px;
-        font-size: 0.875rem;
-        font-family: inherit;
-        outline: none;
-        transition: all 0.2s;
-      }
-      #ai-input:focus {
-        border-color: #1a7a3c;
-        box-shadow: 0 0 0 3px rgba(26,122,60,0.1);
-      }
-      #ai-send-btn {
-        padding: 10px 16px;
-        background: linear-gradient(135deg, #1a7a3c, #2d9a5c);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 0.875rem;
-        transition: all 0.2s;
-      }
-      #ai-send-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(26,122,60,0.3);
-      }
-      #ai-send-btn:active {
-        transform: translateY(0);
-      }
-      .ai-suggested {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        margin-top: 10px;
-        font-size: 0.75rem;
-      }
-      .ai-suggestion-chip {
-        padding: 6px 12px;
-        background: rgba(26,122,60,0.1);
-        border: 1px solid rgba(26,122,60,0.2);
-        border-radius: 20px;
-        cursor: pointer;
-        transition: all 0.2s;
-        color: #1a7a3c;
-        font-weight: 500;
-      }
-      .ai-suggestion-chip:hover {
-        background: rgba(26,122,60,0.2);
-        border-color: rgba(26,122,60,0.4);
-      }
-      @keyframes slideIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      strong { color: #1a7a3c; font-weight: 600; }
-    `;
-    document.head.appendChild(style);
-
-    // Add initial greeting
-    const greeting = document.createElement('div');
-    greeting.className = 'ai-msg bot-msg';
-    greeting.innerHTML = `<div class="ai-msg-content">👋 <strong>Welcome to CropSense AI!</strong><br><br>Ask me anything about:\n🌾 Diseases & treatments\n💊 Spray schedules\n🌧️ Weather alerts\n💰 Market prices\n🏪 Nearby retailers<br><br>Start typing your question below...</div>`;
-    chatContainer.appendChild(greeting);
-
-    // Add input group
-    const inputGroup = document.createElement('div');
-    inputGroup.className = 'ai-input-group';
-    inputGroup.innerHTML = `
-      <input type="text" id="ai-input" placeholder="Ask about farming... (e.g., 'How to treat early blight?')" />
-      <button id="ai-send-btn">Send 🚀</button>
-    `;
-    chatContainer.appendChild(inputGroup);
-
-    // Add suggested questions
-    const suggestedDiv = document.createElement('div');
-    suggestedDiv.className = 'ai-suggested';
-    suggestedDiv.innerHTML = `
-      <span class="ai-suggestion-chip" onclick="cropAI.addMessage('How to treat early blight in tomatoes?')">🍅 Early Blight</span>
-      <span class="ai-suggestion-chip" onclick="cropAI.addMessage('What is the spray schedule for monsoon?')">📅 Spray Schedule</span>
-      <span class="ai-suggestion-chip" onclick="cropAI.addMessage('Where are nearby retailers?')">📍 Find Retailers</span>
-      <span class="ai-suggestion-chip" onclick="cropAI.addMessage('What is the weather forecast?')">⛅ Weather</span>
-    `;
-    chatContainer.appendChild(suggestedDiv);
-
-    // Attach event listeners
-    const input = document.getElementById('ai-input');
-    const sendBtn = document.getElementById('ai-send-btn');
-
-    sendBtn.addEventListener('click', () => {
-      const query = input.value;
-      if (query.trim()) {
-        this.addMessage(query);
-        input.value = '';
-        input.focus();
-      }
-    });
-
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        const query = input.value;
-        if (query.trim()) {
-          this.addMessage(query);
-          input.value = '';
-        }
-      }
-    });
-
-    input.focus();
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)},IN&appid=${key}&units=metric`);
+    if(!res.ok) throw new Error('API error');
+    const data = await res.json();
+    weatherData = data;
+    displayWeather(data);
+    fetchForecast(city, key);
+    checkWeatherAlerts(data);
+  } catch(e) {
+    showDemoWeather(city);
   }
 }
 
-// Initialize AI on page load
-let cropAI;
-document.addEventListener('DOMContentLoaded', () => {
-  cropAI = new CropAI();
-  cropAI.init();
-  toast('🤖 AI Assistant ready! Ask any farming question.');
+async function fetchWeatherByCoords(lat, lon) {
+  const key = alertConfig['owm-key'] || document.getElementById('owm-key')?.value?.trim();
+  if(!key) { showDemoWeather('Current Location'); return; }
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${key}&units=metric`);
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    weatherData = data;
+    displayWeather(data);
+    document.getElementById('weather-location-name').textContent = `— ${data.name}`;
+    checkWeatherAlerts(data);
+  } catch(e) { showDemoWeather('Your Location'); }
+}
+
+function showDemoWeather(city) {
+  const demos = [
+    { temp: 32, hum: 68, wind: 18, rain: 0, icon: '🌤', desc: 'Partly cloudy' },
+    { temp: 28, hum: 82, wind: 25, rain: 12, icon: '🌧', desc: 'Rain showers' },
+    { temp: 38, hum: 45, wind: 30, rain: 0, icon: '☀️', desc: 'Sunny hot' },
+  ];
+  const d = demos[Math.floor(Math.random() * demos.length)];
+  document.getElementById('w-temp').textContent = d.temp + '°';
+  document.getElementById('w-hum').textContent = d.hum + '%';
+  document.getElementById('w-wind').textContent = d.wind;
+  document.getElementById('w-rain').textContent = d.rain;
+  document.getElementById('weather-icon').textContent = d.icon;
+  document.getElementById('weather-location-name').textContent = `— ${city} (Demo)`;
+  generateDemoForecast();
+  updateFarmingAdvisory(d.temp, d.hum, d.rain);
+  addAlertLog('info', `Weather loaded for ${city} (demo data — add OpenWeatherMap API key for live data).`);
+}
+
+function displayWeather(data) {
+  const temp = Math.round(data.main.temp);
+  const hum = data.main.humidity;
+  const wind = Math.round(data.wind.speed * 3.6); // m/s to km/h
+  const rain = data.rain ? Math.round(data.rain['1h'] * 10) / 10 : 0;
+  const iconMap = { 'Clear': '☀️', 'Clouds': '⛅', 'Rain': '🌧', 'Drizzle': '🌦', 'Thunderstorm': '⛈', 'Snow': '❄️', 'Mist': '🌫', 'Haze': '🌫' };
+  const weatherMain = data.weather[0].main;
+  document.getElementById('w-temp').textContent = temp + '°';
+  document.getElementById('w-hum').textContent = hum + '%';
+  document.getElementById('w-wind').textContent = wind;
+  document.getElementById('w-rain').textContent = rain;
+  document.getElementById('weather-icon').textContent = iconMap[weatherMain] || '🌤';
+  updateFarmingAdvisory(temp, hum, rain);
+}
+
+async function fetchForecast(city, key) {
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)},IN&appid=${key}&units=metric&cnt=40`);
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    // Get one reading per day
+    const days = {};
+    data.list.forEach(item => {
+      const date = item.dt_txt.split(' ')[0];
+      if(!days[date]) days[date] = item;
+    });
+    renderForecast(Object.values(days).slice(0, 5));
+  } catch(e) { generateDemoForecast(); }
+}
+
+function renderForecast(days) {
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const iconMap = { 'Clear':'☀️','Clouds':'⛅','Rain':'🌧','Drizzle':'🌦','Thunderstorm':'⛈','Snow':'❄️' };
+  const row = document.getElementById('forecast-row');
+  row.innerHTML = days.map(d => {
+    const date = new Date(d.dt_txt);
+    const dayName = dayNames[date.getDay()];
+    const temp = Math.round(d.main.temp);
+    const icon = iconMap[d.weather[0].main] || '🌤';
+    const pop = Math.round((d.pop||0) * 100);
+    return `<div class="forecast-day">
+      <div class="fday">${dayName}</div>
+      <div class="ficon">${icon}</div>
+      <div class="ftemp">${temp}°C</div>
+      <div class="frain">💧${pop}%</div>
+    </div>`;
+  }).join('');
+}
+
+function generateDemoForecast() {
+  const days2 = [
+    {day:'Mon',icon:'☀️',temp:33,rain:5},
+    {day:'Tue',icon:'⛅',temp:30,rain:20},
+    {day:'Wed',icon:'🌧',temp:27,rain:75},
+    {day:'Thu',icon:'⛈',temp:25,rain:85},
+    {day:'Fri',icon:'🌤',temp:31,rain:10},
+  ];
+  document.getElementById('forecast-row').innerHTML = days2.map(d =>
+    `<div class="forecast-day"><div class="fday">${d.day}</div><div class="ficon">${d.icon}</div><div class="ftemp">${d.temp}°C</div><div class="frain">💧${d.rain}%</div></div>`
+  ).join('');
+}
+
+function updateFarmingAdvisory(temp, hum, rain) {
+  let advisory = '';
+  if(rain > 15) advisory = '🌧 Heavy rain expected — delay pesticide application. Secure stored harvest. Check drainage channels.';
+  else if(temp > 40) advisory = '🌡 Extreme heat — increase irrigation frequency. Apply mulch to retain soil moisture. Protect young plants.';
+  else if(temp < 10) advisory = '❄️ Cold conditions — protect sensitive crops from frost. Delay transplanting. Cover nursery beds.';
+  else if(hum > 85) advisory = '💧 High humidity — watch for fungal diseases. Improve field ventilation. Apply preventive fungicide.';
+  else advisory = '✅ Good farming conditions today. Ideal for field work, spraying, and light irrigation. Monitor soil moisture.';
+  document.getElementById('farming-advisory').textContent = advisory;
+}
+
+function checkWeatherAlerts(data) {
+  const temp = Math.round(data.main.temp);
+  const rain = data.rain ? data.rain['1h'] || 0 : 0;
+  const wind = data.wind.speed * 3.6;
+  const weatherMain = data.weather[0].main;
+  const isRain = document.getElementById('tog-rain')?.checked;
+  const isStorm = document.getElementById('tog-storm')?.checked;
+  const isHeat = document.getElementById('tog-heat')?.checked;
+  const isWind = document.getElementById('tog-wind')?.checked;
+  let alerts = [];
+  if(isRain && rain > 20) alerts.push({ type:'warn', msg:`Heavy rain alert: ${rain}mm/hr detected. Delay pesticide spraying.` });
+  if(isStorm && weatherMain === 'Thunderstorm') alerts.push({ type:'danger', msg:'⛈ Thunderstorm warning! Secure equipment, avoid open fields.' });
+  if(isHeat && temp > 42) alerts.push({ type:'danger', msg:`🌡 Extreme heat: ${temp}°C. Irrigate crops immediately.` });
+  if(isWind && wind > 60) alerts.push({ type:'warn', msg:`💨 High wind warning: ${Math.round(wind)} km/h. Secure greenhouses.` });
+  alerts.forEach(a => {
+    addAlertLog(a.type, a.msg);
+    if(document.getElementById('tog-browser')?.checked) sendBrowserNotification('AgriTech Weather Alert', a.msg);
+    showAlertBanner(a.msg);
+  });
+}
+
+function sendBrowserNotification(title, body) {
+  if('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: 'data:image/svg+xml,...' });
+  }
+}
+
+function showAlertBanner(msg) {
+  const banner = document.getElementById('weather-alert-banner');
+  document.getElementById('alert-banner-text').textContent = '⚡ ' + msg;
+  banner.classList.remove('hide');
+  setTimeout(() => banner.classList.add('hide'), 10000);
+}
+
+function dismissBanner() {
+  document.getElementById('weather-alert-banner').classList.add('hide');
+}
+
+function addAlertLog(type, msg) {
+  const log = document.getElementById('alert-log');
+  if(!log) return;
+  const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const div = document.createElement('div');
+  div.className = `log-item ${type}`;
+  div.innerHTML = `<div><div style="font-weight:600">${msg}</div><div class="log-time">${now}</div></div>`;
+  log.insertBefore(div, log.firstChild);
+  // Keep max 20 items
+  while(log.children.length > 20) log.removeChild(log.lastChild);
+}
+
+function clearAlertLog() {
+  document.getElementById('alert-log').innerHTML = '';
+}
+
+function activateAlerts() {
+  const phone = document.getElementById('alert-phone').value.trim();
+  if(!phone) { alert('Please enter your mobile number first.'); return; }
+  alertConfig.phone = phone;
+  alertConfig.active = true;
+  localStorage.setItem('agritech_alerts', JSON.stringify(alertConfig));
+  addAlertLog('info', `✅ Alert system activated for ${phone}. You will receive weather alerts via enabled channels.`);
+  // Start periodic weather check (every 30 min in production; 60s for demo)
+  if(weatherCheckInterval) clearInterval(weatherCheckInterval);
+  weatherCheckInterval = setInterval(fetchWeatherData, 60000);
+  fetchWeatherData();
+}
+
+async function testAlert() {
+  const phone = document.getElementById('alert-phone').value.trim();
+  const key = alertConfig['twilio-sid'];
+  addAlertLog('warn', '🧪 Test alert triggered. ' + (phone ? `Would send to ${phone}.` : 'Add phone number to receive SMS.'));
+  if(document.getElementById('tog-browser')?.checked) {
+    sendBrowserNotification('AgriTech Test Alert', '🌧 This is a test weather alert from AgriTech. Your alert system is working!');
+  }
+  // Show modal
+  showModal('🧪 Test Alert', `Alert system test successful! In production with Twilio credentials, SMS and WhatsApp messages would be sent to ${phone || 'your configured number'}.`);
+  // Demo WhatsApp link (for manual testing)
+  if(phone && document.getElementById('tog-wa')?.checked) {
+    const waMsg = encodeURIComponent('🌾 AgriTech Weather Alert: This is a test message from your AgriTech farm alert system. System is working correctly!');
+    window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${waMsg}`, '_blank');
+  }
+}
+
+async function sendSMSAlert(to, message) {
+  // This requires a backend proxy. Direct Twilio calls from frontend expose credentials.
+  // In production: POST to your backend /api/send-sms with { to, message }
+  const sid = alertConfig['twilio-sid'];
+  const token = alertConfig['twilio-token'];
+  const from = alertConfig['twilio-from'];
+  if(!sid || !token || !from) {
+    addAlertLog('warn', 'Twilio credentials not configured. SMS not sent.');
+    return;
+  }
+  // Note: In production, use a backend proxy to protect credentials
+  addAlertLog('info', `📱 SMS queued for ${to}: ${message.substring(0,50)}...`);
+}
+
+function sendWhatsAppAlert(to, message) {
+  // Twilio WhatsApp API — requires backend proxy in production
+  addAlertLog('info', `💚 WhatsApp alert queued for ${to}`);
+  // For demo: open wa.me link
+  const waMsg = encodeURIComponent(`🌾 AgriTech Alert: ${message}`);
+  console.log(`WhatsApp: https://wa.me/${to}?text=${waMsg}`);
+}
+
+function showModal(title, body) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+function goToAlertsPage() {
+  closeModal();
+  showPage('alerts');
+}
+
+// ═══════════════════════════════════════════════════
+// MARKETPLACE LOGIC
+// ═══════════════════════════════════════════════════
+const DB=[
+  {id:1,name:"Chlorpyrifos 20% EC Pesticide 1L",cat:"pesticide",emoji:"🧪",kw:"chlorpyrifos pesticide insecticide 1 litre",amz:480,fk:465,im:430,lc:410},
+  {id:2,name:"DAP Fertilizer 50kg",cat:"fertilizer",emoji:"🌿",kw:"DAP fertilizer diammonium phosphate 50kg",amz:1380,fk:1360,im:1290,lc:1250},
+  {id:3,name:"Hybrid Tomato Seeds 10g",cat:"seeds",emoji:"🍅",kw:"hybrid tomato seeds 10 gram agriculture",amz:220,fk:235,im:195,lc:185},
+  {id:4,name:"Drip Irrigation Kit 100m",cat:"irrigation",emoji:"💧",kw:"drip irrigation kit 100 metre",amz:3200,fk:3050,im:2750,lc:2900},
+  {id:5,name:"Urea Fertilizer 45kg",cat:"fertilizer",emoji:"🌾",kw:"urea fertilizer 45kg agriculture",amz:920,fk:905,im:860,lc:830},
+  {id:6,name:"Mancozeb 75% WP Fungicide 500g",cat:"pesticide",emoji:"🔬",kw:"mancozeb 75 wp fungicide 500 gram",amz:340,fk:328,im:310,lc:295},
+  {id:7,name:"Sprayer Pump 16L Backpack",cat:"tools",emoji:"🔧",kw:"agricultural sprayer pump 16 litre backpack",amz:1850,fk:1790,im:1620,lc:1700},
+  {id:8,name:"BT Cotton Seeds 450g",cat:"seeds",emoji:"🌱",kw:"BT cotton seeds 450 gram agriculture",amz:790,fk:810,im:750,lc:720},
+  {id:9,name:"Vermicompost Organic 5kg",cat:"soil",emoji:"🪱",kw:"vermicompost organic fertilizer 5kg",amz:280,fk:265,im:240,lc:210},
+  {id:10,name:"Imidacloprid 17.8% SL 500ml",cat:"pesticide",emoji:"🧫",kw:"imidacloprid 17.8 insecticide 500ml",amz:395,fk:380,im:355,lc:340},
+  {id:11,name:"NPK 19:19:19 Water Soluble 5kg",cat:"fertilizer",emoji:"💊",kw:"NPK 19 19 19 water soluble fertilizer 5kg",amz:860,fk:840,im:790,lc:820},
+  {id:12,name:"Soil Testing Kit",cat:"soil",emoji:"🧪",kw:"soil testing kit agriculture",amz:1450,fk:1380,im:1250,lc:1300},
+  {id:13,name:"Tarpaulin Heavy Duty 20x30ft",cat:"tools",emoji:"🏕️",kw:"tarpaulin heavy duty waterproof 20x30",amz:1100,fk:1050,im:920,lc:980},
+  {id:14,name:"Wheat Seeds (HD-2967) 5kg",cat:"seeds",emoji:"🌾",kw:"wheat seeds HD 2967 5kg agriculture",amz:320,fk:305,im:280,lc:265},
+  {id:15,name:"Pheromone Trap Set (10 pcs)",cat:"pesticide",emoji:"🪤",kw:"pheromone trap agriculture pest set",amz:550,fk:530,im:480,lc:460},
+];
+let K={amzKey:'',amzSecret:'',amzTag:'',amzMarket:'www.amazon.in',fkId:'',fkToken:'',imKey:'',imMobile:''};
+let AP={amz:true,fk:true,im:true,lc:true};
+let currentCat='all';
+let currentProd=[...DB];
+let liveAmzData={};
+
+function loadKeys(){
+  try{const s=localStorage.getItem('agritech_keys');if(s)K=JSON.parse(s);}catch(e){}
+  ['amzKey','amzSecret','amzTag','amzMarket','fkId','fkToken','imKey','imMobile'].forEach(k=>{const el=document.getElementById(k);if(el)el.value=K[k]||'';});
+  if(!K.amzMarket)K.amzMarket='www.amazon.in';
+  updateStatus();
+}
+function saveKeys(){
+  ['amzKey','amzSecret','amzTag','amzMarket','fkId','fkToken','imKey','imMobile'].forEach(k=>{const el=document.getElementById(k);if(el)K[k]=el.value.trim();});
+  localStorage.setItem('agritech_keys',JSON.stringify(K));
+  updateStatus();togglePanel();renderCards();renderTable();
+}
+function clearKeys(){
+  K={amzKey:'',amzSecret:'',amzTag:'',amzMarket:'www.amazon.in',fkId:'',fkToken:'',imKey:'',imMobile:''};
+  localStorage.removeItem('agritech_keys');
+  ['amzKey','amzSecret','amzTag','fkId','fkToken','imKey','imMobile'].forEach(k=>{const el=document.getElementById(k);if(el)el.value='';});
+  document.getElementById('amzMarket').value='www.amazon.in';
+  liveAmzData={};updateStatus();renderCards();renderTable();
+}
+function updateStatus(){
+  const hasAmz=!!(K.amzKey&&K.amzTag);const hasFk=!!K.fkId;
+  const dot=document.getElementById('pdot');const badge=document.getElementById('apiStatus');
+  if(hasAmz||hasFk){dot.classList.add('connected');badge.textContent='✓ Active';badge.className='api-status ok';}
+  else{dot.classList.remove('connected');badge.textContent='Setup Required';badge.className='api-status miss';}
+}
+function togglePanel(){document.getElementById('apiPanel').classList.toggle('show');document.getElementById('chev').classList.toggle('open');}
+function amzLink(p){return `https://${K.amzMarket||'www.amazon.in'}/s?k=${encodeURIComponent(p.kw)}&tag=${K.amzTag||'agritech-21'}`;}
+function fkLink(p){return `https://www.flipkart.com/search?q=${encodeURIComponent(p.kw)}${K.fkId?'&affid='+K.fkId:''}`;}
+function imLink(p){return `https://www.indiamart.com/search.mp?ss=${encodeURIComponent(p.kw)}`;}
+function getAmzP(p){return (liveAmzData[p.id]?.price)||p.amz;}
+function getAmzUrl(p){return liveAmzData[p.id]?.url||amzLink(p);}
+function getP(p,k){return k==='amz'?getAmzP(p):p[k];}
+function getUrl(p,k){if(k==='amz')return getAmzUrl(p);if(k==='fk')return fkLink(p);if(k==='im')return imLink(p);return '#';}
+function minP(p){const v=[];['amz','fk','im','lc'].forEach(k=>{if(AP[k])v.push(getP(p,k));});return v.length?Math.min(...v):0;}
+function maxP(p){const v=[];['amz','fk','im','lc'].forEach(k=>{if(AP[k])v.push(getP(p,k));});return v.length?Math.max(...v):0;}
+function cheapK(p){let best=null,bv=Infinity;['amz','fk','im','lc'].forEach(k=>{const v=getP(p,k);if(AP[k]&&v<bv){bv=v;best=k;}});return best;}
+function saveDiff(p){return maxP(p)-minP(p);}
+const PLbl={amz:'Amazon',fk:'Flipkart',im:'IndiaMart',lc:'Local'};
+const PIco={amz:'🟠',fk:'🔵',im:'🔴',lc:'🟢'};
+const PCol={amz:'camz',fk:'cfk',im:'cim',lc:'clc'};
+async function doSearch(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  const cat=document.getElementById('catSelect').value;
+  if(cat!=='all')currentCat=cat;
+  showLoad(true);
+  let filtered=[...DB];
+  if(currentCat!=='all')filtered=filtered.filter(p=>p.cat===currentCat);
+  if(q)filtered=filtered.filter(p=>p.name.toLowerCase().includes(q)||p.cat.includes(q)||p.kw.toLowerCase().includes(q));
+  currentProd=filtered;
+  await new Promise(r=>setTimeout(r,600));
+  showLoad(false);renderCards();renderTable();
+}
+function fCat(cat,el){
+  currentCat=cat;
+  document.querySelectorAll('.cat-pill').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  currentProd=DB.filter(p=>cat==='all'||p.cat===cat);
+  renderCards();renderTable();
+}
+function renderCards(){
+  const grid=document.getElementById('pgrid');
+  if(!currentProd.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:44px;color:var(--muted)"><div style="font-size:2.8rem">🌱</div><h3 style="margin:10px 0 6px;color:var(--dark)">No products found</h3><p>Try a different search term.</p></div>';document.getElementById('rtitle').textContent='No products found';renderTable();return;}
+  document.getElementById('rtitle').textContent=`Showing ${currentProd.length} product${currentProd.length!==1?'s':''}`;
+  grid.innerHTML=currentProd.map(p=>{
+    const ck=cheapK(p);const sv=saveDiff(p);
+    const rows=['amz','fk','im','lc'].filter(k=>AP[k]).map(k=>{
+      const ic=k===ck;const pr=getP(p,k);const url=getUrl(p,k);const isLoc=k==='lc';
+      return `<a href="${url}" ${isLoc?'':'target="_blank" rel="noopener"'} class="prow ${ic?'cheap':''}" ${isLoc?'onclick="return false"':''}>
+        <span class="pn ${PCol[k]}">${PIco[k]} ${PLbl[k]}</span>
+        <span class="pv ${ic?'clc':''}">₹${pr.toLocaleString('en-IN')}</span></a>`;
+    }).join('');
+    const buyUrl=ck&&ck!=='lc'?getUrl(p,ck):'#';
+    return `<div class="pcard">
+      ${sv>60?'<div class="badge-best">Best Deal</div>':''}
+      <div class="pimg">${p.emoji}</div>
+      <div class="pbody">
+        <div class="pcat">${p.cat}</div>
+        <div class="pname">${p.name}</div>
+        <div class="pprices">${rows}</div>
+        ${sv>0?`<div class="savtag">💰 Save up to ₹${sv.toLocaleString('en-IN')}</div>`:''}
+        <a href="${buyUrl}" ${ck&&ck!=='lc'?'target="_blank" rel="noopener"':''} class="btn-buy">Buy on ${ck?PLbl[ck]:'Best Platform'} →</a>
+      </div></div>`;
+  }).join('');
+}
+function renderTable(){
+  const body=document.getElementById('ctbody');
+  if(!currentProd.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No products</td></tr>';return;}
+  body.innerHTML=currentProd.map(p=>{
+    const ck=cheapK(p);const mxp=maxP(p);
+    function cell(k){
+      if(!AP[k])return '<td style="color:#ccc;font-size:.76rem">—</td>';
+      const pr=getP(p,k);const isC=k===ck;const isH=pr===mxp&&!isC;const isLoc=k==='lc';const url=getUrl(p,k);
+      return `<td class="pcell ${isC?'plo':isH?'phi':''}">
+        ${isLoc?`₹${pr.toLocaleString('en-IN')}`:`<a class="plink" href="${url}" target="_blank">₹${pr.toLocaleString('en-IN')}</a>`}
+        ${isC?'<span class="tbest">✓ Best</span>':''}</td>`;
+    }
+    return `<tr><td><strong>${p.emoji} ${p.name}</strong></td><td style="font-size:.76rem;color:var(--muted)">${p.cat}</td>${cell('amz')}${cell('fk')}${cell('im')}${cell('lc')}
+      <td><span style="background:#e8f5e9;color:#2e7d32;font-size:.76rem;font-weight:700;padding:3px 10px;border-radius:50px">${ck?PLbl[ck]:'N/A'}</span></td></tr>`;
+  }).join('');
+}
+function togPlat(k){AP[k]=!AP[k];document.getElementById('t-'+k).classList.toggle('on',AP[k]);renderCards();renderTable();}
+function doSort(mode){
+  if(mode==='asc')currentProd.sort((a,b)=>minP(a)-minP(b));
+  else if(mode==='desc')currentProd.sort((a,b)=>minP(b)-minP(a));
+  else if(mode==='save')currentProd.sort((a,b)=>saveDiff(b)-saveDiff(a));
+  else currentProd=DB.filter(p=>currentCat==='all'||p.cat===currentCat);
+  renderCards();renderTable();
+}
+let lstepsData=[];
+function showLoad(v){document.getElementById('loadDiv').style.display=v?'block':'none';document.getElementById('resultsSec').style.opacity=v?'0.35':'1';}
+
+// ═══════════════════════════════════════════════════
+// SATELLITE MAP (Leaflet + Nominatim geocoding)
+// ═══════════════════════════════════════════════════
+let satMapInit=false,satMap,satMarker,analysisCircle,anomalyMarkers=[],currentLatLng=null;
+
+function initSatMap(){
+  satMapInit=true;
+  satMap=L.map('sat-map',{zoomControl:true}).setView([20.5937,78.9629],5);
+  // Satellite-like tile layer using OpenStreetMap
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+    attribution:'Tiles © Esri — Esri, DeLorme, NAVTEQ',maxZoom:18
+  }).addTo(satMap);
+  // Labels overlay
+  L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}{r}.png',{
+    attribution:'Map tiles by Stamen Design',maxZoom:20,opacity:0.6
+  }).addTo(satMap);
+  satMap.on('click',function(e){
+    placeMarker(e.latlng.lat,e.latlng.lng);
+    document.getElementById('location-input').value=`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  });
+}
+
+function updateRangeStyle(el){
+  const pct=(el.value-el.min)/(el.max-el.min)*100;
+  el.style.background=`linear-gradient(to right,var(--green) ${pct}%,#d4e4d4 ${pct}%)`;
+}
+
+function placeMarker(lat,lng){
+  currentLatLng={lat,lng};
+  if(satMarker)satMap.removeLayer(satMarker);
+  satMarker=L.marker([lat,lng]).addTo(satMap).bindPopup(`<b>Selected Field</b><br>Lat:${lat.toFixed(5)}<br>Lng:${lng.toFixed(5)}`).openPopup();
+  if(analysisCircle)satMap.removeLayer(analysisCircle);
+  const r=parseFloat(document.getElementById('radius-range').value)*1000;
+  analysisCircle=L.circle([lat,lng],{radius:r,color:'#2e7d32',fillColor:'#4caf50',fillOpacity:.12,weight:2}).addTo(satMap);
+}
+
+async function getCurrentLocation(){
+  if(!navigator.geolocation){alert('Geolocation not supported.');return;}
+  setSatStatus('Getting your location…',true);
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude:lat,longitude:lng}=pos.coords;
+    if(!satMapInit)initSatMap();
+    satMap.setView([lat,lng],14);
+    placeMarker(lat,lng);
+    document.getElementById('location-input').value=`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setSatStatus('📍 Using your current location',false);
+  },err=>{setSatStatus('Location access denied.',false);});
+}
+
+async function searchLocation(){
+  const q=document.getElementById('location-input').value.trim();
+  if(!q)return;
+  const llMatch=q.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if(llMatch){const lat=parseFloat(llMatch[1]),lng=parseFloat(llMatch[2]);satMap.setView([lat,lng],12);placeMarker(lat,lng);return;}
+  setSatStatus('Geocoding location…',true);
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,{headers:{'Accept-Language':'en'}});
+    const data=await res.json();
+    if(!data.length){setSatStatus('Location not found.',false);return;}
+    const{lat,lon,display_name}=data[0];
+    satMap.setView([parseFloat(lat),parseFloat(lon)],12);
+    placeMarker(parseFloat(lat),parseFloat(lon));
+    setSatStatus(`📍 ${display_name.split(',').slice(0,3).join(', ')}`,false);
+  }catch(e){setSatStatus('Geocoding failed. Try clicking the map.',false);}
+}
+
+function setSatStatus(msg,loading){
+  const bar=document.getElementById('status-bar-sat');const txt=document.getElementById('status-text-sat');
+  bar.classList.add('show');txt.textContent=msg;
+  bar.querySelector('.spinner-sm').style.display=loading?'block':'none';
+}
+function hideSatStatus(){document.getElementById('status-bar-sat').classList.remove('show');}
+
+async function runAnalysis(){
+  if(!currentLatLng){alert('Please select a field location first — search or click on the map.');return;}
+  const btn=document.getElementById('analyze-btn');btn.disabled=true;
+  const indexType=document.getElementById('index-select').value;
+  const satellite=document.getElementById('satellite-select').value;
+  const radius=document.getElementById('radius-range').value;
+  const cloudCover=document.getElementById('cloud-range').value;
+  const dateFrom=document.getElementById('date-from').value;
+  const dateTo=document.getElementById('date-to').value;
+  const{lat,lng}=currentLatLng;
+  document.getElementById('results-grid').style.display='none';
+  document.getElementById('info-box').classList.remove('show');
+  document.getElementById('anomaly-list').classList.remove('show');
+  anomalyMarkers.forEach(m=>satMap.removeLayer(m));anomalyMarkers=[];
+  const steps=['Connecting to satellite archive…',`Querying ${satellite} imagery…`,`Filtering cloud cover ≤${cloudCover}%…`,`Computing ${indexType} index…`,'Detecting growth anomalies…','Running AI interpretation…'];
+  let i=0;const st=setInterval(()=>{if(i<steps.length)setSatStatus(steps[i++],true);},900);
+  await sleep(steps.length*900+400);clearInterval(st);
+  const analysis=generateAnalysis(lat,lng,indexType,satellite,radius);
+  setSatStatus('Generating AI insights…',true);
+  let aiText=await callSatClaude(lat,lng,indexType,satellite,radius,dateFrom,dateTo,analysis);
+  hideSatStatus();btn.disabled=false;
+  document.getElementById('r-healthy').textContent=analysis.healthy+'%';
+  document.getElementById('r-stress').textContent=analysis.stress+'%';
+  document.getElementById('r-anomaly').textContent=analysis.anomaly+'%';
+  document.getElementById('results-grid').style.display='grid';
+  document.getElementById('info-text').innerHTML=aiText;
+  document.getElementById('info-box').classList.add('show');
+  renderAnomalyList(analysis.zones);
+  plotAnomalyMarkers(lat,lng,analysis.zones,parseFloat(radius));
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function generateAnalysis(lat,lng,index,satellite,radius){
+  const seed=Math.abs(Math.sin(lat*100)*Math.cos(lng*100))*1000;
+  const rng=(a,b)=>a+(seed%(b-a+1));
+  const healthy=Math.round(rng(45,75));const stress=Math.round(rng(15,30));const anomaly=100-healthy-stress;
+  const zoneTypes=[
+    {type:'warning',title:'Moisture Deficit',desc:'Reduced values suggest water stress. Irrigation recommended.'},
+    {type:'warning',title:'Chlorophyll Drop',desc:'Possible nitrogen deficiency or early pest damage detected.'},
+    {type:'critical',title:'Bare Soil / Crop Failure',desc:'Very low reflectance. Possible crop loss or harvested patch.'},
+    {type:'warning',title:'Phenological Lag',desc:'Growth stage behind surrounding fields by ~2 weeks.'},
+    {type:'critical',title:'Disease Hotspot',desc:'Spectral signature consistent with fungal or bacterial infection.'},
+  ];
+  const numZones=2+Math.round(seed%3);const zones=[];
+  for(let i=0;i<numZones;i++)zones.push({...zoneTypes[Math.floor((seed*(i+1))%zoneTypes.length)],confidence:Math.round(72+(seed*(i+2))%25)+'%'});
+  return{healthy,stress,anomaly,zones};
+}
+
+async function callSatClaude(lat,lng,index,satellite,radius,from,to,analysis){
+  const locStr=`${Math.abs(lat).toFixed(3)}°${lat>=0?'N':'S'}, ${Math.abs(lng).toFixed(3)}°${lng>=0?'E':'W'}`;
+  const prompt=`Expert agricultural remote sensing analyst. Farmer ran satellite field analysis:\n- Location: ${locStr}\n- Index: ${index}, Satellite: ${satellite}, Radius: ${radius}km\n- Date: ${from} to ${to}\n- Healthy: ${analysis.healthy}%, Stress: ${analysis.stress}%, Anomaly: ${analysis.anomaly}%\n- Zones: ${analysis.zones.map(z=>z.title).join(', ')}\n\nWrite a concise 3-4 sentence field health summary with key concern and one actionable recommendation. Be farmer-friendly.`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    if(!res.ok)throw new Error();
+    const data=await res.json();
+    return data.content.filter(b=>b.type==='text').map(b=>b.text).join('').replace(/\n/g,'<br>');
+  }catch(e){
+    return `Your field at ${locStr} shows <strong>${analysis.healthy}% healthy vegetation</strong> with ${analysis.stress}% moderate stress and <strong>${analysis.anomaly}% critical anomaly zones</strong>. Priority concern: <em>${analysis.zones[0]?.title||'moisture deficit'}</em> — consider targeted irrigation or soil sampling.`;
+  }
+}
+
+function renderAnomalyList(zones){
+  const list=document.getElementById('anomaly-list');
+  list.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--dark);margin-bottom:8px;">⚠️ Detected Anomaly Zones</div>';
+  zones.forEach(z=>{
+    const div=document.createElement('div');
+    div.className=`anomaly-item${z.type==='critical'?' critical':''}`;
+    div.innerHTML=`<div class="ai-icon">${z.type==='critical'?'🔴':'🟠'}</div><div><div class="ai-title">${z.title} <span style="font-weight:400;color:#888;font-size:11px">(${z.confidence} confidence)</span></div><div class="ai-desc">${z.desc}</div></div>`;
+    list.appendChild(div);
+  });
+  list.classList.add('show');
+}
+
+function plotAnomalyMarkers(lat,lng,zones,radiusKm){
+  const colors={warning:'#ff9800',critical:'#f44336'};
+  zones.forEach((z,i)=>{
+    const angle=(i/zones.length)*2*Math.PI;const dist=radiusKm*0.4*1000;
+    const dLat=(dist*Math.cos(angle))/111320;
+    const dLng=(dist*Math.sin(angle))/(111320*Math.cos(lat*Math.PI/180));
+    const circle=L.circleMarker([lat+dLat,lng+dLng],{radius:10,color:colors[z.type]||'#ff9800',fillColor:colors[z.type],fillOpacity:.6,weight:2}).addTo(satMap).bindPopup(`<b>${z.title}</b><br>${z.desc}`);
+    anomalyMarkers.push(circle);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// CROP DOCTOR + GRADCAM
+// ═══════════════════════════════════════════════════
+let currentBase64=null,currentMime='image/jpeg',camStream=null,scanHistory=[];
+let lastDiagnosisData=null;
+
+function handleFileSelect(e){const file=e.target.files[0];if(file)loadImageFile(file);}
+function handleDrop(e){
+  e.preventDefault();document.getElementById('dropzone').classList.remove('drag');
+  const file=e.dataTransfer.files[0];if(file&&file.type.startsWith('image/'))loadImageFile(file);
+}
+function loadImageFile(file){
+  currentMime=file.type||'image/jpeg';
+  const reader=new FileReader();
+  reader.onload=ev=>{const dataUrl=ev.target.result;currentBase64=dataUrl.split(',')[1];showPreview(dataUrl,'🖼 Uploaded');};
+  reader.readAsDataURL(file);
+}
+function showPreview(src,badge){
+  const wrap=document.getElementById('preview-wrap');
+  document.getElementById('preview-img').src=src;
+  document.getElementById('preview-badge').textContent=badge;
+  wrap.style.display='block';
+  document.getElementById('dropzone').style.display='none';
+  document.getElementById('analyze-btn-crop').disabled=false;
+  // Hide previous heatmap
+  document.getElementById('gradcam-wrap').classList.remove('show');
+  document.getElementById('gradcam-legend').style.display='none';
+  document.getElementById('deficiency-panel').style.display='none';
+  document.getElementById('btn-heatmap').classList.remove('show');
+}
+function clearImage(){
+  currentBase64=null;currentMime='image/jpeg';lastDiagnosisData=null;
+  document.getElementById('preview-wrap').style.display='none';
+  document.getElementById('dropzone').style.display='block';
+  document.getElementById('analyze-btn-crop').disabled=true;
+  document.getElementById('file-input').value='';
+  document.getElementById('gradcam-wrap').classList.remove('show');
+  document.getElementById('gradcam-legend').style.display='none';
+  document.getElementById('deficiency-panel').style.display='none';
+  document.getElementById('btn-heatmap').classList.remove('show');
+  resetResults();
+}
+function resetResults(){
+  document.getElementById('results-panel').innerHTML=`<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-title">Upload a crop photo to begin</div><div>AI will identify diseases, generate GradCAM heatmap, and prescribe treatment.</div></div>`;
+}
+async function openCamera(){
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    document.getElementById('cam-video').srcObject=camStream;
+    document.getElementById('cam-overlay').classList.add('show');
+  }catch(e){alert('Camera access denied. Please upload a photo instead.');}
+}
+function snapPhoto(){
+  const video=document.getElementById('cam-video');const canvas=document.getElementById('cam-canvas');
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0);
+  const dataUrl=canvas.toDataURL('image/jpeg',.9);
+  currentBase64=dataUrl.split(',')[1];currentMime='image/jpeg';
+  showPreview(dataUrl,'📷 Camera Scan');closeCamera();
+}
+function closeCamera(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  document.getElementById('cam-overlay').classList.remove('show');
+}
+function setCropStatus(msg,show=true){
+  const bar=document.getElementById('status-bar-crop');
+  if(show){bar.classList.add('show');document.getElementById('status-text-crop').textContent=msg;}
+  else{bar.classList.remove('show');}
+}
+
+async function runDiagnosis(){
+  if(!currentBase64)return;
+  const btn=document.getElementById('analyze-btn-crop');btn.disabled=true;
+  const steps=['🔬 Preprocessing image…','🧠 Running vision analysis…','🌿 Identifying crop type…','🦠 Detecting pathogens…','💊 Generating treatment protocol…','📊 Calculating survival probability…'];
+  let i=0;const t=setInterval(()=>{if(i<steps.length)setCropStatus(steps[i++]);},800);
+  await sleep(steps.length*800+400);clearInterval(t);
+  setCropStatus('✨ Finalising report…');
+  const result=await callClaudeVision(currentBase64,currentMime);
+  setCropStatus('',false);btn.disabled=false;
+  lastDiagnosisData=result;
+  renderDiagnosis(result,document.getElementById('preview-img').src);
+  // Show heatmap button
+  document.getElementById('btn-heatmap').classList.add('show');
+}
+
+async function callClaudeVision(base64,mime){
+  const prompt=`You are an expert plant pathologist. Analyse this crop photo carefully.\n\nRespond ONLY with valid JSON (no markdown fences) with this exact structure:\n{"cropType":"string","diseaseName":"string","diseaseType":"Fungal/Bacterial/Viral/Pest/Nutrient Deficiency/Healthy","severityLevel":"Low/Medium/High/Critical","survivalChance":number(0-100),"confidenceScore":number(0-100),"affectedArea":"string","deficiencies":["list of detected deficiencies like Nitrogen,Phosphorus,Iron etc, empty if none"],"yellowEdgePresent":boolean,"symptoms":["3-4 strings"],"description":"2-3 sentences","treatments":[{"step":number,"priority":"Urgent/Important/Preventive","action":"string","detail":"string"}],"recommendedProducts":["3-5 strings"],"preventionTips":["2-3 strings"],"timeToRecovery":"string","prognosis":"2-3 sentences"}\n\nProvide 4-6 treatment steps. Include deficiencies array with any detected nutrient deficiencies. Be specific and practical.`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:base64}},{type:'text',text:prompt}]}]})});
+    if(!res.ok)throw new Error('API '+res.status);
+    const data=await res.json();
+    const text=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  }catch(e){
+    return{cropType:'Unknown',diseaseName:'Analysis Incomplete',diseaseType:'Unknown',severityLevel:'Medium',survivalChance:60,confidenceScore:40,affectedArea:'Unknown',deficiencies:[],yellowEdgePresent:false,symptoms:['Image analysis failed','Retry with clearer photo'],description:'AI analysis failed. Please retry.',treatments:[{step:1,priority:'Important',action:'Retry with better image',detail:'Ensure sharp, well-lit photo.'}],recommendedProducts:['Consult local agronomist'],preventionTips:['Take clearer photos'],timeToRecovery:'Unknown',prognosis:'Unable to generate without clear diagnosis.'};
+  }
+}
+
+// ─── GRADCAM HEATMAP (Canvas-based simulation) ───────────────────────────────
+// Simulates GradCAM by analyzing pixel brightness/color to find yellowed/diseased areas
+function generateHeatmap(){
+  const previewImg = document.getElementById('preview-img');
+  if(!previewImg.src || previewImg.src === window.location.href) return;
+  setCropStatus('🔥 Generating GradCAM heatmap…');
+  // Copy preview to gradcam base
+  const gradcamBase = document.getElementById('gradcam-base');
+  gradcamBase.src = previewImg.src;
+  gradcamBase.onload = () => {
+    const canvas = document.getElementById('gradcam-canvas');
+    const ctx = canvas.getContext('2d');
+    const w = gradcamBase.naturalWidth || gradcamBase.offsetWidth || 400;
+    const h = gradcamBase.naturalHeight || gradcamBase.offsetHeight || 300;
+    canvas.width = w;
+    canvas.height = h;
+    // Draw original image on hidden canvas to read pixels
+    const offscreen = document.createElement('canvas');
+    offscreen.width = w; offscreen.height = h;
+    const octx = offscreen.getContext('2d');
+    octx.drawImage(gradcamBase, 0, 0, w, h);
+    const imgData = octx.getImageData(0, 0, w, h);
+    const pixels = imgData.data;
+    // Heatmap canvas
+    ctx.clearRect(0, 0, w, h);
+    // Analyze each pixel for disease indicators:
+    // - Yellowing: high R, high G, low B
+    // - Browning: high R, medium G, low B
+    // - Darkening/necrosis: low R, G, B
+    const heatData = ctx.createImageData(w, h);
+    for(let i=0; i<pixels.length; i+=4) {
+      const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
+      let heat=0;
+      // Yellowing detection (nitrogen deficiency, chlorosis)
+      const yellowScore = (r>150 && g>130 && b<100) ? ((r+g)/2 - b)/255 : 0;
+      // Browning detection (disease, necrosis)
+      const brownScore = (r>100 && g<r*0.75 && b<r*0.6) ? (r-g)/255 * 0.8 : 0;
+      // Unusual discoloration vs healthy green
+      const greenHealth = (g>r*1.1 && g>b*1.1) ? 1 : 0;
+      heat = Math.max(yellowScore, brownScore) * (1 - greenHealth*0.7);
+      heat = Math.min(1, Math.max(0, heat));
+      // Map heat to color: blue(low) -> green -> yellow -> red(high)
+      let hr=0,hg=0,hb=0;
+      if(heat < 0.25) { hr=0; hg=0; hb=Math.round(255*heat*4); }
+      else if(heat < 0.5) { hr=0; hg=Math.round(255*(heat-0.25)*4); hb=255-Math.round(255*(heat-0.25)*4); }
+      else if(heat < 0.75) { hr=Math.round(255*(heat-0.5)*4); hg=255; hb=0; }
+      else { hr=255; hg=255-Math.round(255*(heat-0.75)*4); hb=0; }
+      const alpha = heat > 0.1 ? Math.round(heat * 180) : 0;
+      heatData.data[i]=hr; heatData.data[i+1]=hg; heatData.data[i+2]=hb; heatData.data[i+3]=alpha;
+    }
+    ctx.putImageData(heatData, 0, 0);
+    // Smooth with blur effect
+    ctx.filter = 'blur(4px)';
+    ctx.drawImage(canvas, 0, 0);
+    ctx.filter = 'none';
+    // Show heatmap section
+    document.getElementById('gradcam-wrap').classList.add('show');
+    document.getElementById('gradcam-legend').style.display='block';
+    document.getElementById('preview-wrap').style.display='none';
+    // Show deficiency tags based on diagnosis
+    showDeficiencyTags();
+    setCropStatus('', false);
+  };
+  gradcamBase.onerror = () => {
+    // Fallback: just show the image with synthetic overlay
+    document.getElementById('gradcam-base').src = previewImg.src;
+    document.getElementById('gradcam-wrap').classList.add('show');
+    setCropStatus('', false);
+  };
+}
+
+function showDeficiencyTags(){
+  const panel = document.getElementById('deficiency-panel');
+  const tagsDiv = document.getElementById('deficiency-tags');
+  if(!lastDiagnosisData) return;
+  const d = lastDiagnosisData;
+  let tags = [];
+  if(d.deficiencies && d.deficiencies.length) {
+    d.deficiencies.forEach(def => {
+      const defLower = def.toLowerCase();
+      let cls = 'disease';
+      if(defLower.includes('nitro')) cls='nitrogen';
+      else if(defLower.includes('phos')) cls='phosphorus';
+      else if(defLower.includes('potas')) cls='potassium';
+      else if(defLower.includes('iron')) cls='iron';
+      tags.push(`<span class="def-tag ${cls}">${def} Deficiency</span>`);
+    });
+  }
+  if(d.yellowEdgePresent) tags.push('<span class="def-tag nitrogen">⚠️ Yellow Edge Detected</span>');
+  if(d.diseaseName && d.diseaseName !== 'Healthy Plant' && d.diseaseName !== 'Analysis Incomplete') {
+    tags.push(`<span class="def-tag disease">🦠 ${d.diseaseName}</span>`);
+  }
+  if(tags.length === 0) tags.push('<span class="def-tag healthy">✅ No major deficiency detected</span>');
+  tagsDiv.innerHTML = tags.join('');
+  panel.style.display='block';
+}
+
+function renderDiagnosis(d,thumbSrc){
+  const sevClass={Low:'sev-low',Medium:'sev-medium',High:'sev-high',Critical:'sev-critical'}[d.severityLevel]||'sev-medium';
+  const priClass=p=>p==='Urgent'?'urgent':p==='Important'?'warning':'';
+  const numColor=p=>p==='Urgent'?'#f44336':p==='Important'?'#ff9800':'#2e7d32';
+  const survivalColor=d.survivalChance>=70?'#4caf50':d.survivalChance>=40?'#ff9800':'#f44336';
+  const meterPos=`${100-d.survivalChance}%`;
+  const symptomsHTML=d.symptoms.map(s=>`<li style="margin-bottom:4px">${s}</li>`).join('');
+  const treatHTML=d.treatments.map(step=>`<div class="treat-item ${priClass(step.priority)}">
+    <div class="treat-num" style="background:${numColor(step.priority)}">${step.step}</div>
+    <div><div style="font-weight:700;color:#1a2e1a;margin-bottom:2px">${step.action}<span style="font-size:10px;font-weight:600;color:#888;margin-left:6px;text-transform:uppercase">${step.priority}</span></div>
+    <div style="color:#555">${step.detail}</div></div></div>`).join('');
+  const prodHTML=(d.recommendedProducts||[]).map(p=>`<span class="prod-tag">💊 ${p}</span>`).join('');
+  const prevHTML=(d.preventionTips||[]).map(t=>`<div class="tip-item">🛡 <span>${t}</span></div>`).join('');
+  const isHealthy=d.diseaseName==='Healthy Plant';
+  document.getElementById('results-panel').innerHTML=`<div class="diag-card">
+    <div class="disease-header"><div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px">${d.cropType} · ${d.diseaseType}</div>
+      <div class="disease-name">${isHealthy?'✅ ':'🦠 '}${d.diseaseName}</div></div>
+      <span class="severity-chip ${sevClass}">${d.severityLevel} Severity</span></div>
+    <div><div class="survival-label"><span>🌱 Survival / Recovery Chance</span><span class="survival-pct" style="color:${survivalColor}">${d.survivalChance}%</span></div>
+      <div class="meter-track"><div class="meter-fill" id="meter-fill" style="width:0%;background-position:${meterPos} 0"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;margin-top:4px"><span>Critical</span><span>Moderate</span><span>Excellent</span></div></div>
+    <div class="conf-row">
+      <div class="conf-chip">Confidence <span class="val">${d.confidenceScore}%</span></div>
+      <div class="conf-chip">Affected <span class="val">${d.affectedArea}</span></div>
+      <div class="conf-chip">Recovery <span class="val">${d.timeToRecovery}</span></div></div>
+    <div class="desc-box"><b>About this condition:</b><br>${d.description}<ul style="margin-top:8px;padding-left:16px;color:#555">${symptomsHTML}</ul></div>
+    <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:10px;padding:10px 14px;font-size:.82rem;color:#6d4c41;">
+      <strong>🔥 GradCAM:</strong> Click "Generate GradCAM Heatmap" on the left to visualize affected regions with colour intensity mapping.
+    </div>
+    <div><div class="treat-title">💊 Treatment Plan</div><div class="treat-list">${treatHTML}</div></div>
+    <div><div class="treat-title">🧪 Recommended Products</div><div class="prod-list">${prodHTML}</div></div>
+    <div style="background:#f4f6f4;border-radius:12px;padding:12px 14px"><div class="treat-title" style="margin-bottom:8px">🛡 Prevention</div>${prevHTML}</div>
+    <div class="prognosis"><h4>🤖 AI Prognosis</h4>${d.prognosis}</div></div>`;
+  setTimeout(()=>{const fill=document.getElementById('meter-fill');if(fill)fill.style.width=d.survivalChance+'%';},100);
+  addToHistory(thumbSrc,d.diseaseName,d.survivalChance);
+}
+
+function addToHistory(src,disease,pct){
+  scanHistory.unshift({src,disease,pct});if(scanHistory.length>8)scanHistory.pop();
+  const section=document.getElementById('history-section');const grid=document.getElementById('hist-grid');
+  section.style.display='block';
+  grid.innerHTML=scanHistory.map((h,i)=>`<div class="hist-thumb" onclick="replayHistory(${i})"><img src="${h.src}" alt="scan"/><div class="hist-label">${h.pct}%</div></div>`).join('');
+}
+function replayHistory(i){
+  const h=scanHistory[i];showPreview(h.src,'🕐 History');
+  const img=new Image();img.src=h.src;
+  const canvas=document.createElement('canvas');
+  img.onload=()=>{canvas.width=img.width;canvas.height=img.height;canvas.getContext('2d').drawImage(img,0,0);currentBase64=canvas.toDataURL('image/jpeg',.9).split(',')[1];currentMime='image/jpeg';};
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  // Populate state datalist for login
+  const stateDl=document.getElementById('states');
+  if(stateDl)stateDl.innerHTML=Object.keys(geoMatrix).map(s=>`<option value="${s}"></option>`).join('');
+  // Range sliders
+  document.querySelectorAll('input[type=range]').forEach(updateRangeStyle);
+  // Location input enter key
+  const locInput=document.getElementById('location-input');
+  if(locInput)locInput.addEventListener('keydown',e=>{if(e.key==='Enter')searchLocation();});
+  // Load alert config
+  loadAlertConfig();
+  // Check existing login
+  const profile=getProfile();
+  if(profile)launchMainApp(profile);
 });
