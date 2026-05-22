@@ -1,29 +1,3 @@
-// ═══════════════════════════════════════════════════
-// KEYBOARD CLICK SOUND
-// ═══════════════════════════════════════════════════
-let audioCtx = null;
-function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
-function playKeyClick() {
-  try {
-    initAudio();
-    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for(let i=0;i<data.length;i++){
-      const env = 1 - i/data.length;
-      data[i] = (Math.random()*2-1) * env * 0.18;
-    }
-    const src = audioCtx.createBufferSource();
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'highpass'; filter.frequency.value = 2800;
-    src.buffer = buf;
-    src.connect(filter); filter.connect(audioCtx.destination);
-    src.start();
-  } catch(e) {}
-}
-document.addEventListener('keydown', (e) => {
-  const tag = e.target.tagName.toLowerCase();
-  if(['input','textarea'].includes(tag) && e.key.length === 1) playKeyClick();
-});
 
 // ═══════════════════════════════════════════════════
 // LOGIN / AUTH FLOW
