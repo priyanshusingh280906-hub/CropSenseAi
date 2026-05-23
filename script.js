@@ -1,3 +1,29 @@
+// ═══════════════════════════════════════════════════
+// KEYBOARD CLICK SOUND
+// ═══════════════════════════════════════════════════
+let audioCtx = null;
+function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+function playKeyClick() {
+  try {
+    initAudio();
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i=0;i<data.length;i++){
+      const env = 1 - i/data.length;
+      data[i] = (Math.random()*2-1) * env * 0.18;
+    }
+    const src = audioCtx.createBufferSource();
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 2800;
+    src.buffer = buf;
+    src.connect(filter); filter.connect(audioCtx.destination);
+    src.start();
+  } catch(e) {}
+}
+document.addEventListener('keydown', (e) => {
+  const tag = e.target.tagName.toLowerCase();
+  if(['input','textarea'].includes(tag) && e.key.length === 1) playKeyClick();
+});
 
 // ═══════════════════════════════════════════════════
 // LOGIN / AUTH FLOW
@@ -831,20 +857,74 @@ function setCropStatus(msg,show=true){
   else{bar.classList.remove('show');}
 }
 
-async function runDiagnosis(){
-  if(!currentBase64)return;
-  const btn=document.getElementById('analyze-btn-crop');btn.disabled=true;
-  const steps=['🔬 Preprocessing image…','🧠 Running vision analysis…','🌿 Identifying crop type…','🦠 Detecting pathogens…','💊 Generating treatment protocol…','📊 Calculating survival probability…'];
-  let i=0;const t=setInterval(()=>{if(i<steps.length)setCropStatus(steps[i++]);},800);
-  await sleep(steps.length*800+400);clearInterval(t);
-  setCropStatus('✨ Finalising report…');
-  const result=await callClaudeVision(currentBase64,currentMime);
-  setCropStatus('',false);btn.disabled=false;
-  lastDiagnosisData=result;
-  renderDiagnosis(result,document.getElementById('preview-img').src);
-  // Show heatmap button
-  document.getElementById('btn-heatmap').classList.add('show');
+function getAiApiBase(){
+  if(window.location.protocol==='file:')return 'http://127.0.0.1:8000';
+  return window.location.port==='8000'?'':'http://127.0.0.1:8000';
 }
+function base64ToFile(base64,mime,name){
+  const bin=atob(base64);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return new File([arr],name,{type:mime||'image/jpeg'});
+}
+function mapBackendToDiagnosis(r){
+  const sevMap={LOW:'Low',MEDIUM:'Medium',HIGH:'High',CRITICAL:'Critical'};
+  const severity=sevMap[String(r.severity||'').toUpperCase()]||r.severity||'Medium';
+  const defaultTreat=[{step:1,priority:'Urgent',action:'Recommended treatment',detail:r.treatment||'Consult local agronomist.'}];
+  return{
+    cropType:r.crop_type||'Crop',
+    diseaseName:r.disease||'Unknown',
+    diseaseType:r.disease_type||'Unknown',
+    severityLevel:severity,
+    survivalChance:Number(r.survival_chance)||60,
+    confidenceScore:Number(r.confidence)||0,
+    affectedArea:r.affected_percentage||'Unknown',
+    deficiencies:r.deficiencies||[],
+    yellowEdgePresent:Boolean(r.yellow_edge_present)||(r.deficiencies||[]).some(d=>String(d).toLowerCase().includes('nitrogen')),
+    symptoms:r.symptoms||['See treatment plan below'],
+    description:r.description||r.treatment||'AI diagnosis complete.',
+    treatments:r.treatments||defaultTreat,
+    recommendedProducts:r.recommended_products||['Consult local agronomist'],
+    preventionTips:r.prevention_tips||['Monitor crop regularly','Maintain proper irrigation'],
+    timeToRecovery:r.time_to_recovery||'2–4 weeks',
+    prognosis:r.prognosis||r.treatment||'Follow the treatment plan for best recovery.'
+  };
+}
+async function runDiagnosis(){
+  const imageInput=document.getElementById('file-input');
+  let file=imageInput?.files?.[0];
+  if(!file&&currentBase64){
+    file=base64ToFile(currentBase64,currentMime,'crop-scan.jpg');
+  }
+  if(!file){
+    alert('Please upload or capture a crop image first!');
+    return;
+  }
+  const thumbSrc=document.getElementById('preview-img')?.src||'';
+  const btn=document.getElementById('analyze-btn-crop');
+  btn.disabled=true;
+  setCropStatus('Analysing image with AI…');
+  const formData=new FormData();
+  formData.append('file',file);
+  try{
+    const response=await fetch(`${getAiApiBase()}/predict`,{method:'POST',body:formData});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'Server error');
+    if(result.analyzer_version)console.log('Crop AI analyzer:',result.analyzer_version);
+    const diagnosis=mapBackendToDiagnosis(result);
+    lastDiagnosisData=diagnosis;
+    renderDiagnosis(diagnosis,thumbSrc);
+    document.getElementById('btn-heatmap').classList.add('show');
+    setCropStatus('',false);
+  }catch(error){
+    console.error('Error linking to backend:',error);
+    setCropStatus('Server offline — start python main.py',true);
+    alert('Could not connect to the Python AI server.\n\n1. Open a terminal in the project folder\n2. Run: python main.py\n3. Open http://127.0.0.1:8000 in your browser');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 
 async function callClaudeVision(base64,mime){
   const prompt=`You are an expert plant pathologist. Analyse this crop photo carefully.\n\nRespond ONLY with valid JSON (no markdown fences) with this exact structure:\n{"cropType":"string","diseaseName":"string","diseaseType":"Fungal/Bacterial/Viral/Pest/Nutrient Deficiency/Healthy","severityLevel":"Low/Medium/High/Critical","survivalChance":number(0-100),"confidenceScore":number(0-100),"affectedArea":"string","deficiencies":["list of detected deficiencies like Nitrogen,Phosphorus,Iron etc, empty if none"],"yellowEdgePresent":boolean,"symptoms":["3-4 strings"],"description":"2-3 sentences","treatments":[{"step":number,"priority":"Urgent/Important/Preventive","action":"string","detail":"string"}],"recommendedProducts":["3-5 strings"],"preventionTips":["2-3 strings"],"timeToRecovery":"string","prognosis":"2-3 sentences"}\n\nProvide 4-6 treatment steps. Include deficiencies array with any detected nutrient deficiencies. Be specific and practical.`;
