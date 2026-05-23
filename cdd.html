@@ -1,0 +1,695 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AgriTech — Smart Farming Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     LOGIN APP SHELL
+═══════════════════════════════════════════════ -->
+<div id="app-login">
+  <div class="signin-container">
+    <div class="brand-side">
+      <div class="brand-logo">
+        <svg width="28" height="28" viewBox="0 0 30 30" fill="none">
+          <path d="M15 2L25 8V22L15 28L5 22V8Z" fill="#ffffff"/>
+          <path d="M15 8L20 11V17L15 20L10 17V11Z" fill="#a5d6a7"/>
+        </svg>
+        <span>AGRITECH</span>
+      </div>
+      <div class="brand-quote">
+        <h2>Smart Analytics For Precision Farming.</h2>
+        <p>Connect live price feeds, compare wholesale product markets instantly, and protect your agricultural profit margins from a single account layout.</p>
+      </div>
+      <div class="brand-footer">&copy; 2026 AgriTech Platforms Inc. All values live.</div>
+    </div>
+    <div class="form-side">
+      <div class="form-header">
+        <h1 id="mainTitle">Get Started</h1>
+        <p id="subTitle">Enter your phone number to secure your local account space.</p>
+      </div>
+
+      <!-- Step 1: Phone -->
+      <div class="auth-step active" id="stepPhone">
+        <div class="form-group">
+          <label>Mobile Number</label>
+          <div class="phone-row">
+            <span class="phone-flag">🇮🇳 +91</span>
+            <input type="tel" id="userPhone" placeholder="10-digit mobile number" maxlength="10" style="flex:1;" onkeydown="if(event.key==='Enter')goToOtp()"/>
+          </div>
+        </div>
+        <button class="btn-action" onclick="goToOtp()" id="btnSendOtp">Send Verification OTP</button>
+        <div style="text-align:center;margin-top:14px;font-size:.8rem;color:var(--muted);">
+          🔒 OTP sent via SMS · Secure & Private
+        </div>
+      </div>
+
+      <!-- Step 2: OTP -->
+      <div class="auth-step" id="stepOtp">
+        <div class="otp-matrix">
+          <input type="text" class="otp-cell" maxlength="1" id="box1" oninput="shiftFocus(this,'box2')" onkeydown="otpKeydown(event,this,null,'box1')"/>
+          <input type="text" class="otp-cell" maxlength="1" id="box2" oninput="shiftFocus(this,'box3')" onkeydown="otpKeydown(event,this,'box1','box2')"/>
+          <input type="text" class="otp-cell" maxlength="1" id="box3" oninput="shiftFocus(this,'box4')" onkeydown="otpKeydown(event,this,'box2','box3')"/>
+          <input type="text" class="otp-cell" maxlength="1" id="box4" oninput="shiftFocus(this,null)" onkeydown="otpKeydown(event,this,'box3','box4')"/>
+        </div>
+        <button class="btn-action" onclick="verifyOtp()" id="btnVerifyOtp">Confirm & Verify Code</button>
+        <div class="otp-resend" id="otpResend">
+          Didn't receive? <a onclick="resendOtp()">Resend OTP</a> · <span id="otpTimer">Wait 30s</span>
+        </div>
+      </div>
+
+      <!-- Step 3: Profile -->
+      <div class="auth-step" id="stepProfile">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="regName" placeholder="Enter your full name"/>
+        </div>
+        <div class="form-group">
+          <label>State</label>
+          <input type="text" id="regState" placeholder="Type state name" list="states" oninput="filterCities()"/>
+          <datalist id="states"></datalist>
+        </div>
+        <div class="form-group">
+          <label>City / District</label>
+          <input type="text" id="regCity" placeholder="Select state first" list="cities" disabled/>
+          <datalist id="cities"></datalist>
+        </div>
+        <div class="form-group">
+          <label>Primary Crop Interest</label>
+          <select id="regCrop">
+            <option value="Wheat">Wheat 🌾</option>
+            <option value="Tomato">Tomato 🍅</option>
+            <option value="Cotton">Cotton 🌱</option>
+            <option value="Rice">Rice 🌾</option>
+            <option value="Sugarcane">Sugarcane 🎋</option>
+            <option value="General">Mix / General Farming</option>
+          </select>
+        </div>
+        <button class="btn-action" onclick="saveAndRedirect()">Complete Profile Setup →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════════ -->
+<div id="app-main">
+
+<!-- Weather Alert Banner -->
+<div id="weather-alert-banner" class="hide">
+  <div class="alert-pulse"></div>
+  <span id="alert-banner-text">⚡ WEATHER ALERT: Heavy rain expected in your area in next 6 hours</span>
+  <span class="alert-close" onclick="dismissBanner()">✕</span>
+</div>
+
+<!-- Navigation -->
+<nav id="global-nav">
+  <a class="logo" onclick="showPage('marketplace')">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <path d="M15 2L25 8V22L15 28L5 22V8Z" fill="#2e7d32"/>
+      <path d="M15 8L20 11V17L15 20L10 17V11Z" fill="#56c45a"/>
+    </svg>
+    AGRITECH
+  </a>
+  <ul id="nav-links">
+    <li><a href="#" onclick="showPage('marketplace');return false;" id="nl-marketplace" class="active">🛒 Marketplace</a></li>
+    <li><a href="#" onclick="showPage('satellite');return false;" id="nl-satellite">🛰 Satellite</a></li>
+    <li><a href="#" onclick="showPage('crop');return false;" id="nl-crop">🔬 Crop Doctor</a></li>
+    <li><a href="#" onclick="showPage('alerts');return false;" id="nl-alerts">🌩 Weather Alerts</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-user" id="nav-user-info">
+      <div class="nav-avatar" id="nav-avatar">?</div>
+      <span id="nav-username">Farmer</span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobile-menu">
+  <a href="#" onclick="showPage('marketplace');toggleMenu();return false;" id="mm-marketplace" class="active">🛒 Marketplace</a>
+  <a href="#" onclick="showPage('satellite');toggleMenu();return false;" id="mm-satellite">🛰 Satellite Field Analysis</a>
+  <a href="#" onclick="showPage('crop');toggleMenu();return false;" id="mm-crop">🔬 Crop Disease Doctor</a>
+  <a href="#" onclick="showPage('alerts');toggleMenu();return false;" id="mm-alerts">🌩 Weather Alerts</a>
+  <a href="#" onclick="doLogout()">🚪 Sign Out</a>
+</div>
+
+<!-- ═════ PAGE: MARKETPLACE ═════ -->
+<div id="page-marketplace" class="page-section active">
+  <section class="hero">
+    <h1>Compare Agricultural Prices,<br>Save More</h1>
+    <p>Live prices on pesticides, fertilizers, seeds & equipment — compared across Amazon, Flipkart, IndiaMart & local markets.</p>
+    <button class="btn-demo" onclick="document.querySelector('#page-marketplace .main').scrollIntoView({behavior:'smooth'})">Compare Prices Now</button>
+    <div class="hero-stats">
+      <div class="hero-stat-left">
+        <strong>Trusted by</strong>
+        <div class="avatars">
+          <span style="background:#7cb47c">RK</span><span style="background:#5a9e6f">PM</span>
+          <span style="background:#8bc34a">AJ</span><span style="background:#4caf50">MS</span><span style="background:#66bb6a">NR</span>
+        </div>
+        10k+ farmers to grow smarter.
+      </div>
+      <div class="hero-stat-right">
+        Save up to <span class="big">30<span style="font-size:1.8rem">%</span></span>
+        <small>with smart price comparison</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="api-config-wrap">
+    <div class="api-config-toggle" onclick="togglePanel()">
+      <div class="label">
+        <span class="pulsedot" id="pdot"></span>
+        🔑 Connect Affiliate APIs for Live Prices
+        <span class="api-status miss" id="apiStatus">Setup Required</span>
+      </div>
+      <span class="chevron" id="chev">▼</span>
+    </div>
+    <div class="api-config-panel" id="apiPanel">
+      <div class="api-note-top">Enter your affiliate credentials below. <strong>All keys stored only in your browser — never transmitted.</strong></div>
+      <div class="api-grid">
+        <div class="api-block">
+          <h4>🟠 Amazon PA-API 5.0</h4>
+          <label>Access Key ID</label><input type="password" id="amzKey" placeholder="AKIAIOSFODNN7EXAMPLE"/>
+          <label>Secret Access Key</label><input type="password" id="amzSecret" placeholder="wJalrXUtnFEMI/K7MDENG…"/>
+          <label>Partner Tag</label><input type="text" id="amzTag" placeholder="yourname-21"/>
+          <label>Marketplace</label><input type="text" id="amzMarket" placeholder="www.amazon.in" value="www.amazon.in"/>
+          <p class="anote">Register at <a href="https://affiliate-program.amazon.in/" target="_blank">affiliate-program.amazon.in</a></p>
+        </div>
+        <div class="api-block">
+          <h4>🔵 Flipkart Affiliate API</h4>
+          <label>Affiliate Tracking ID</label><input type="text" id="fkId" placeholder="yourflipkartID"/>
+          <label>API Token</label><input type="password" id="fkToken" placeholder="your-api-token"/>
+          <p class="anote">Register at <a href="https://affiliate.flipkart.com/" target="_blank">affiliate.flipkart.com</a></p>
+          <p class="warn">⚠️ Server-side only. Tracking ID generates affiliate deep links.</p>
+        </div>
+        <div class="api-block">
+          <h4>🔴 IndiaMart Affiliate API</h4>
+          <label>API Key</label><input type="password" id="imKey" placeholder="your-indiamart-api-key"/>
+          <label>Registered Mobile</label><input type="text" id="imMobile" placeholder="9999999999"/>
+          <p class="anote">Apply at <a href="https://www.indiamart.com/supplier-affiliate/" target="_blank">indiamart.com/supplier-affiliate</a></p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn-save" onclick="saveKeys()">💾 Save & Activate</button>
+        <button class="btn-clear-keys" onclick="clearKeys()">✕ Clear All Keys</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="search-section">
+      <h2>Find Agricultural Products</h2>
+      <p>Search and compare prices instantly across all major platforms.</p>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search: pesticide, fertilizer, drip kit, seeds…" onkeydown="if(event.key==='Enter')doSearch()"/>
+        <select id="catSelect">
+          <option value="all">All Categories</option>
+          <option value="pesticide">Pesticides</option>
+          <option value="fertilizer">Fertilizers</option>
+          <option value="seeds">Seeds</option>
+          <option value="tools">Farm Tools</option>
+          <option value="irrigation">Irrigation</option>
+          <option value="soil">Soil Conditioners</option>
+        </select>
+        <button class="btn-search" onclick="doSearch()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search
+        </button>
+      </div>
+    </div>
+    <div class="cats" id="catPills">
+      <button class="cat-pill active" onclick="fCat('all',this)">🌾 All</button>
+      <button class="cat-pill" onclick="fCat('pesticide',this)">🧪 Pesticides</button>
+      <button class="cat-pill" onclick="fCat('fertilizer',this)">🌿 Fertilizers</button>
+      <button class="cat-pill" onclick="fCat('seeds',this)">🌱 Seeds</button>
+      <button class="cat-pill" onclick="fCat('tools',this)">🔧 Farm Tools</button>
+      <button class="cat-pill" onclick="fCat('irrigation',this)">💧 Irrigation</button>
+      <button class="cat-pill" onclick="fCat('soil',this)">🪨 Soil</button>
+    </div>
+    <div class="platform-row">
+      <span>Show from:</span>
+      <button class="plat-btn amz on" id="t-amz" onclick="togPlat('amz')"><span class="pdot" style="background:#e47911"></span>Amazon</button>
+      <button class="plat-btn fk on" id="t-fk" onclick="togPlat('fk')"><span class="pdot" style="background:#2874f0"></span>Flipkart</button>
+      <button class="plat-btn im on" id="t-im" onclick="togPlat('im')"><span class="pdot" style="background:#e02020"></span>IndiaMart</button>
+      <button class="plat-btn lc on" id="t-lc" onclick="togPlat('lc')"><span class="pdot" style="background:#2e7d32"></span>Local</button>
+    </div>
+    <div class="loading" id="loadDiv"><div class="spinner-big"></div><div id="loadMsg">Fetching prices…</div><div class="lsteps" id="lsteps"></div></div>
+    <div id="resultsSec">
+      <div class="results-header">
+        <h3 id="rtitle">Showing all products</h3>
+        <div class="sort-row">Sort: <select onchange="doSort(this.value)"><option value="default">Relevance</option><option value="asc">Price ↑</option><option value="desc">Price ↓</option><option value="save">Best Savings</option></select></div>
+      </div>
+      <div class="products-grid" id="pgrid"></div>
+    </div>
+    <div class="compare-section">
+      <h2>Full Platform Comparison</h2>
+      <div class="tw">
+        <table class="ctable">
+          <thead><tr><th>Product</th><th>Category</th><th>🟠 Amazon</th><th>🔵 Flipkart</th><th>🔴 IndiaMart</th><th>🟢 Local</th><th>Best Deal</th></tr></thead>
+          <tbody id="ctbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tips">
+      <div class="tip"><div class="icon">💡</div><h4>Buy in Bulk</h4><p>Fertilizers & pesticides in large quantities bring 15–25% savings on IndiaMart and local dealers.</p></div>
+      <div class="tip"><div class="icon">📅</div><h4>Seasonal Timing</h4><p>Purchase seeds and soil conditioners Nov–Jan when off-season prices drop up to 30%.</p></div>
+      <div class="tip"><div class="icon">🚚</div><h4>Factor Delivery</h4><p>Amazon & Flipkart charge delivery on heavy items. Add delivery cost before comparing.</p></div>
+      <div class="tip"><div class="icon">⭐</div><h4>Verified Sellers</h4><p>On IndiaMart, choose Gold-verified suppliers for genuine certified agri inputs.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════ PAGE: SATELLITE ═════ -->
+<div id="page-satellite" class="page-section">
+  <section class="hero">
+    <div class="drone-wrap">
+      <svg width="220" height="80" viewBox="0 0 220 80" fill="none">
+        <rect x="85" y="30" width="50" height="20" rx="4" fill="#d0d8d8"/>
+        <line x1="85" y1="40" x2="30" y2="40" stroke="#b0b8b8" stroke-width="4"/>
+        <line x1="135" y1="40" x2="190" y2="40" stroke="#b0b8b8" stroke-width="4"/>
+        <line x1="85" y1="40" x2="60" y2="25" stroke="#b0b8b8" stroke-width="3"/>
+        <line x1="135" y1="40" x2="160" y2="25" stroke="#b0b8b8" stroke-width="3"/>
+        <ellipse cx="30" cy="40" rx="28" ry="5" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="190" cy="40" rx="28" ry="5" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="60" cy="25" rx="22" ry="4" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="160" cy="25" rx="22" ry="4" fill="#e0e8e0" opacity=".7"/>
+        <rect x="103" y="48" width="14" height="12" rx="3" fill="#444"/>
+        <circle cx="110" cy="58" r="4" fill="#222"/>
+        <circle cx="30" cy="40" r="4" fill="#f44336"/>
+        <circle cx="190" cy="40" r="4" fill="#f44336"/>
+      </svg>
+    </div>
+    <div class="spray">
+      <svg width="160" height="40" viewBox="0 0 160 40" fill="none">
+        <line x1="80" y1="0" x2="20" y2="38" stroke="rgba(180,230,255,0.55)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="50" y2="38" stroke="rgba(180,230,255,0.45)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="80" y2="38" stroke="rgba(180,230,255,0.4)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="110" y2="38" stroke="rgba(180,230,255,0.45)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="140" y2="38" stroke="rgba(180,230,255,0.55)" stroke-width="2"/>
+      </svg>
+    </div>
+    <h1>Satellite Field<br>Anomaly Detector</h1>
+    <p>Select your field on the map, configure parameters, and get AI-powered vegetation & growth anomaly analysis with real satellite data.</p>
+    <button class="btn-demo" onclick="document.querySelector('#page-satellite .tool-section').scrollIntoView({behavior:'smooth'})">Analyze My Field ↓</button>
+    <div class="hero-stats">
+      <div class="hero-stat-left">
+        <strong>Trusted by</strong>
+        <div class="avatars">
+          <span style="background:#c0392b">A</span><span style="background:#8e44ad">R</span><span style="background:#2980b9">S</span><span style="background:#16a085">M</span><span style="background:#d35400">P</span>
+        </div>
+        10k+ farmers to grow smarter.
+      </div>
+      <div class="hero-stat-right">
+        Save up to <span class="big">30<span style="font-size:1.8rem">%</span></span>
+        <small>water with smart irrigation</small>
+      </div>
+    </div>
+  </section>
+  <div style="background:#fff;">
+    <div style="max-width:1240px;margin:0 auto;">
+      <section class="tool-section" id="sat-tool">
+        <div class="section-title">🛰 Satellite Field Anomaly Detector</div>
+        <div class="section-sub">Click the map to select your field, or search by location name. Uses OpenStreetMap + AI analysis.</div>
+        <div class="sat-tool-grid">
+          <div class="ctrl-panel">
+            <div>
+              <label class="field-label">Search Location</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="text" id="location-input" placeholder="e.g. Punjab, India or lat,lng" style="flex:1;min-width:140px;"/>
+                <button class="btn-analyze" style="width:auto;padding:11px 16px;margin-top:0;" onclick="searchLocation()">🔍</button>
+                <button class="btn-loc" onclick="getCurrentLocation()" title="Use my current location">📍 My Location</button>
+              </div>
+            </div>
+            <div class="row2">
+              <div>
+                <label class="field-label">Spectral Index</label>
+                <select id="index-select">
+                  <option value="NDVI">NDVI (Vegetation)</option>
+                  <option value="EVI">EVI (Enhanced)</option>
+                  <option value="SAVI">SAVI (Soil-adj.)</option>
+                  <option value="NDWI">NDWI (Water)</option>
+                  <option value="NDRE">NDRE (Red-Edge)</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Satellite Source</label>
+                <select id="satellite-select">
+                  <option value="Sentinel-2">Sentinel-2 (10m)</option>
+                  <option value="Landsat-8">Landsat-8 (30m)</option>
+                  <option value="Landsat-9">Landsat-9 (30m)</option>
+                  <option value="MODIS">MODIS (250m)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Analysis Radius: <span id="radius-val">5</span> km</label>
+              <div class="range-wrap">
+                <input type="range" id="radius-range" min="1" max="50" value="5" oninput="document.getElementById('radius-val').textContent=this.value;updateRangeStyle(this);">
+                <div class="range-labels"><span>1 km</span><span>25 km</span><span>50 km</span></div>
+              </div>
+            </div>
+            <div class="row2">
+              <div><label class="field-label">Date From</label><input type="text" id="date-from" placeholder="YYYY-MM-DD" value="2024-06-01"/></div>
+              <div><label class="field-label">Date To</label><input type="text" id="date-to" placeholder="YYYY-MM-DD" value="2024-09-30"/></div>
+            </div>
+            <div>
+              <label class="field-label">Cloud Cover: <span id="cloud-val">20</span>%</label>
+              <div class="range-wrap">
+                <input type="range" id="cloud-range" min="0" max="100" value="20" oninput="document.getElementById('cloud-val').textContent=this.value;updateRangeStyle(this);">
+                <div class="range-labels"><span>0%</span><span>50%</span><span>100%</span></div>
+              </div>
+            </div>
+            <button class="btn-analyze" id="analyze-btn" onclick="runAnalysis()">🛰 Run Satellite Analysis</button>
+            <div id="status-bar-sat"><div class="spinner-sm"></div><span id="status-text-sat">Initialising…</span></div>
+            <div class="legend">
+              <div class="chip"><div class="dot" style="background:#4caf50"></div>Healthy</div>
+              <div class="chip"><div class="dot" style="background:#cddc39"></div>Moderate</div>
+              <div class="chip"><div class="dot" style="background:#ff9800"></div>Stress</div>
+              <div class="chip"><div class="dot" style="background:#f44336"></div>Anomaly</div>
+            </div>
+          </div>
+          <div class="map-panel">
+            <div id="sat-map"></div>
+            <div class="results-grid" id="results-grid" style="display:none">
+              <div class="result-card healthy"><div class="rc-label">Healthy Area</div><div class="rc-val" id="r-healthy">—</div></div>
+              <div class="result-card stress"><div class="rc-label">Stress Zones</div><div class="rc-val" id="r-stress">—</div></div>
+              <div class="result-card anomaly"><div class="rc-label">Anomalies</div><div class="rc-val" id="r-anomaly">—</div></div>
+            </div>
+            <div id="info-box"><h4>🤖 AI Analysis Summary</h4><div id="info-text"></div></div>
+            <div id="anomaly-list"></div>
+          </div>
+        </div>
+      </section>
+      <div class="api-note">Satellite data via <strong>NASA Earthdata / Copernicus</strong> · Map: OpenStreetMap + Leaflet</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════ PAGE: CROP DOCTOR ═════ -->
+<div id="page-crop" class="page-section">
+  <section class="hero">
+    <div class="drone-wrap">
+      <svg width="220" height="78" viewBox="0 0 220 78" fill="none">
+        <rect x="85" y="29" width="50" height="20" rx="4" fill="#d0d8d8"/>
+        <line x1="85" y1="39" x2="30" y2="39" stroke="#b0b8b8" stroke-width="4"/>
+        <line x1="135" y1="39" x2="190" y2="39" stroke="#b0b8b8" stroke-width="4"/>
+        <line x1="85" y1="39" x2="60" y2="24" stroke="#b0b8b8" stroke-width="3"/>
+        <line x1="135" y1="39" x2="160" y2="24" stroke="#b0b8b8" stroke-width="3"/>
+        <ellipse cx="30" cy="39" rx="28" ry="5" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="190" cy="39" rx="28" ry="5" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="60" cy="24" rx="22" ry="4" fill="#e0e8e0" opacity=".7"/>
+        <ellipse cx="160" cy="24" rx="22" ry="4" fill="#e0e8e0" opacity=".7"/>
+        <rect x="103" y="47" width="14" height="12" rx="3" fill="#444"/>
+        <circle cx="110" cy="57" r="4" fill="#222"/>
+        <circle cx="30" cy="39" r="4" fill="#f44336"/>
+        <circle cx="190" cy="39" r="4" fill="#f44336"/>
+      </svg>
+    </div>
+    <div class="spray">
+      <svg width="160" height="38" viewBox="0 0 160 38" fill="none">
+        <line x1="80" y1="0" x2="20" y2="36" stroke="rgba(180,230,255,0.52)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="50" y2="36" stroke="rgba(180,230,255,0.42)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="80" y2="36" stroke="rgba(180,230,255,0.38)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="110" y2="36" stroke="rgba(180,230,255,0.42)" stroke-width="2"/>
+        <line x1="80" y1="0" x2="140" y2="36" stroke="rgba(180,230,255,0.52)" stroke-width="2"/>
+      </svg>
+    </div>
+    <h1>AI Crop Disease<br>Doctor + GradCAM</h1>
+    <p>Upload a crop photo — our AI diagnoses disease, generates a GradCAM heatmap highlighting affected areas, and prescribes treatments.</p>
+    <button class="btn-demo" onclick="document.querySelector('#page-crop .crop-tool').scrollIntoView({behavior:'smooth'})">Diagnose My Crop 🔬</button>
+    <div class="hero-stats">
+      <div class="hero-stat-left"><strong>Trusted by</strong>
+        <div class="avatars"><span style="background:#c0392b">A</span><span style="background:#8e44ad">R</span><span style="background:#2980b9">S</span><span style="background:#16a085">M</span><span style="background:#d35400">P</span></div>
+        10k+ farmers to grow smarter.
+      </div>
+      <div class="hero-stat-right">Save up to <span class="big">30<span style="font-size:1.8rem">%</span></span><small>with early detection</small></div>
+    </div>
+  </section>
+  <div style="background:#fff;">
+    <div style="max-width:1240px;margin:0 auto;">
+      <div class="crop-tool" id="crop-tool">
+        <div class="section-title">🔬 AI Crop Disease Detector + GradCAM Heatmap</div>
+        <div class="section-sub">Upload or scan a crop photo — AI identifies disease, generates a colour heatmap highlighting affected regions, and shows nutrient deficiencies.</div>
+        <div class="crop-tool-grid">
+          <div class="upload-panel">
+            <div class="dropzone" id="dropzone"
+              ondragover="event.preventDefault();this.classList.add('drag')"
+              ondragleave="this.classList.remove('drag')"
+              ondrop="handleDrop(event)">
+              <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)"/>
+              <div class="dz-icon">🌿</div>
+              <div class="dz-title">Drop your crop photo here</div>
+              <div class="dz-sub">or click to browse · JPG, PNG, WEBP</div>
+            </div>
+            <div class="preview-wrap" id="preview-wrap">
+              <img id="preview-img" src="" alt="Crop preview"/>
+              <div class="preview-badge" id="preview-badge">📷 Uploaded</div>
+              <button class="btn-clear-img" onclick="clearImage()">✕</button>
+            </div>
+
+            <!-- GradCAM Heatmap Section -->
+            <div class="gradcam-wrap" id="gradcam-wrap">
+              <img id="gradcam-base" src="" alt="GradCAM base"/>
+              <canvas id="gradcam-canvas"></canvas>
+              <div class="gradcam-badge">🔥 GradCAM Heatmap — Affected Regions</div>
+            </div>
+            <div id="gradcam-legend" style="display:none;padding:8px 12px;background:#f8f8f8;border:1.5px solid #e0e0e0;border-radius:10px;">
+              <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;">Heatmap Intensity Scale</div>
+              <div class="gradcam-bar"></div>
+              <div class="gradcam-labels"><span>No concern (Blue)</span><span>Moderate (Yellow)</span><span>Critical (Red)</span></div>
+            </div>
+            <div id="deficiency-panel" style="display:none;">
+              <div style="font-size:.78rem;font-weight:700;color:var(--dark);margin-bottom:7px;">🧪 Detected Deficiencies / Issues:</div>
+              <div class="deficiency-tags" id="deficiency-tags"></div>
+            </div>
+
+            <button class="btn-heatmap" id="btn-heatmap" onclick="generateHeatmap()">🔥 Generate GradCAM Heatmap</button>
+            <div class="action-row">
+              <button class="btn-cam" onclick="openCamera()">📷 Camera</button>
+              <button class="btn-cam" onclick="document.getElementById('file-input').click()">🖼 Gallery</button>
+              <button class="btn-analyze-crop" id="analyze-btn-crop" onclick="runDiagnosis()" >🔬 Diagnose Disease</button>
+            </div>
+            <div class="status-bar-crop" id="status-bar-crop">
+              <div class="spinner-sm"></div>
+              <span id="status-text-crop">Analysing…</span>
+            </div>
+            <div class="tips-box">
+              <div class="tips-title">📸 For Best Results</div>
+              <div class="tip-item">✅ <span>Capture affected leaf in natural light</span></div>
+              <div class="tip-item">✅ <span>Include both healthy and diseased parts</span></div>
+              <div class="tip-item">✅ <span>Avoid blurry or dark photos</span></div>
+              <div class="tip-item">✅ <span>Photograph the worst-affected area</span></div>
+            </div>
+            <div class="history-section" id="history-section" style="display:none">
+              <div class="hist-title">🕐 Recent Scans</div>
+              <div class="hist-grid" id="hist-grid"></div>
+            </div>
+          </div>
+          <div class="results-panel" id="results-panel">
+    <div class="analysis-results-content">
+        <h2 id="condition-title">Analysis Incomplete</h2>
+        <div class="badge" id="severity-badge">Normal</div>
+        
+        <div class="metrics">
+            <span id="survival-chance-text">60%</span>
+            <div id="confidence-score">Confidence: --</div>
+            <div id="affected-area">Affected Area: --</div>
+        </div>
+
+        <div class="treatment-section">
+            <h3>Treatment Plan:</h3>
+            <ul id="treatment-plan-list">
+                <li>No recommendations yet. Upload a leaf to begin scanning.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+        </div>
+      </div>
+      <div class="api-note">Powered by <strong>AGRITECH </strong> · GradCAM heatmap via canvas pixel analysis · Results are AI-generated and indicative.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════ PAGE: WEATHER ALERTS ═════ -->
+<div id="page-alerts" class="page-section">
+  <section class="hero" style="background:linear-gradient(to bottom,rgba(5,30,60,.7),rgba(5,30,60,.4) 50%,rgba(5,30,60,.75)),url('https://images.unsplash.com/photo-1527482937786-6608f6e14c15?w=1600&q=80')center/cover no-repeat;">
+    <h1>Smart Weather<br>Alert System</h1>
+    <p>Real-time weather monitoring with SMS, WhatsApp, and voice call alerts for rain, storms, frost, and crop-critical weather events.</p>
+    <button class="btn-demo" onclick="document.querySelector('.alerts-grid').scrollIntoView({behavior:'smooth'})">Configure Alerts ↓</button>
+    <div class="hero-stats">
+      <div class="hero-stat-left"><strong>Alert Coverage</strong>
+        <div class="avatars"><span style="background:#1565c0">☔</span><span style="background:#6a1b9a">⚡</span><span style="background:#b71c1c">🌡</span><span style="background:#2e7d32">🌬</span></div>
+        Rain · Storm · Heat · Wind
+      </div>
+      <div class="hero-stat-right"><span class="big">24<span style="font-size:1.8rem">h</span></span><small>advance alert window</small></div>
+    </div>
+  </section>
+
+  <div class="alerts-grid">
+    <!-- Current Weather Card -->
+    <div class="alert-card">
+      <h3>🌤 Current Weather <span id="weather-location-name" style="font-size:.8rem;font-weight:500;color:var(--muted);">— Loading…</span></h3>
+      <div class="weather-icon" id="weather-icon">⏳</div>
+      <div class="weather-now" id="weather-now">
+        <div class="weather-stat"><div class="wval" id="w-temp">--</div><div class="wlbl">Temperature °C</div></div>
+        <div class="weather-stat"><div class="wval" id="w-hum">--</div><div class="wlbl">Humidity %</div></div>
+        <div class="weather-stat"><div class="wval" id="w-wind">--</div><div class="wlbl">Wind km/h</div></div>
+        <div class="weather-stat"><div class="wval" id="w-rain">--</div><div class="wlbl">Rain mm</div></div>
+      </div>
+      <button class="btn-setup-alerts" onclick="fetchWeatherData()" style="background:#1565c0;">🔄 Refresh Weather</button>
+      <button class="btn-setup-alerts" onclick="getCurrentWeatherLocation()" style="margin-top:8px;">📍 Use My Location</button>
+    </div>
+
+    <!-- 5-Day Forecast -->
+    <div class="alert-card">
+      <h3>📅 5-Day Forecast</h3>
+      <div class="forecast-row" id="forecast-row">
+        <div style="text-align:center;color:var(--muted);font-size:.84rem;padding:20px;">Load weather first ↑</div>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:.82rem;font-weight:700;color:var(--dark);margin-bottom:8px;">🌾 Farming Advisory</div>
+        <div id="farming-advisory" style="font-size:.82rem;color:var(--muted);line-height:1.65;">Select your location to get personalised farming advice based on weather conditions.</div>
+      </div>
+    </div>
+
+    <!-- Alert Configuration -->
+    <div class="alert-card">
+      <h3>⚙️ Alert Configuration</h3>
+      <div class="phone-config" style="margin-bottom:12px;">
+        <label style="font-size:.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block;">Your Mobile Number</label>
+        <input type="tel" id="alert-phone" placeholder="Enter +91 XXXXXXXXXX" style="margin-bottom:8px;"/>
+        <label style="font-size:.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block;">WhatsApp Number (if different)</label>
+        <input type="tel" id="alert-whatsapp" placeholder="Enter WhatsApp number"/>
+      </div>
+      <div class="alert-config">
+        <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Alert Types</div>
+        <div class="alert-toggle">
+          <label>💬 SMS Text Alerts</label>
+          <label class="toggle-switch"><input type="checkbox" id="tog-sms" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="alert-toggle">
+          <label>💚 WhatsApp Alerts</label>
+          <label class="toggle-switch"><input type="checkbox" id="tog-wa" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="alert-toggle">
+          <label>📞 Voice Call Alert</label>
+          <label class="toggle-switch"><input type="checkbox" id="tog-call"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="alert-toggle">
+          <label>🔔 Browser Notification</label>
+          <label class="toggle-switch"><input type="checkbox" id="tog-browser" checked/><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+      <div class="alert-config" style="margin-top:8px;">
+        <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Alert Thresholds</div>
+        <div class="alert-toggle"><label>🌧 Rain > 20mm in 6h</label><label class="toggle-switch"><input type="checkbox" id="tog-rain" checked/><span class="toggle-slider"></span></label></div>
+        <div class="alert-toggle"><label>⚡ Storm / Lightning</label><label class="toggle-switch"><input type="checkbox" id="tog-storm" checked/><span class="toggle-slider"></span></label></div>
+        <div class="alert-toggle"><label>🌡 High Temp > 42°C</label><label class="toggle-switch"><input type="checkbox" id="tog-heat" checked/><span class="toggle-slider"></span></label></div>
+        <div class="alert-toggle"><label>❄️ Frost Warning</label><label class="toggle-switch"><input type="checkbox" id="tog-frost"/><span class="toggle-slider"></span></label></div>
+        <div class="alert-toggle"><label>💨 Wind > 60 km/h</label><label class="toggle-switch"><input type="checkbox" id="tog-wind"/><span class="toggle-slider"></span></label></div>
+      </div>
+      <div style="margin-top:10px;font-size:.76rem;color:var(--muted);background:#f8f8f8;padding:10px;border-radius:8px;border-left:3px solid #ff9800;">
+        <strong>API Setup Required:</strong><br>
+        • SMS: Twilio (<a href="https://twilio.com" target="_blank" style="color:var(--green)">twilio.com</a>) — Add credentials below<br>
+        • WhatsApp: Twilio WhatsApp API<br>
+        • Voice: Twilio Voice API<br>
+        • Weather: OpenWeatherMap API
+      </div>
+      <div class="api-block" style="margin-top:10px;">
+        <label>OpenWeatherMap API Key</label><input type="password" id="owm-key" placeholder="Your OWM API key"/>
+        <label>Twilio Account SID</label><input type="password" id="twilio-sid" placeholder="AC..."/>
+        <label>Twilio Auth Token</label><input type="password" id="twilio-token" placeholder="Auth token"/>
+        <label>Twilio Phone Number</label><input type="text" id="twilio-from" placeholder="+1XXXXXXXXXX"/>
+        <button class="btn-save" onclick="saveAlertConfig()" style="margin-top:8px;width:100%;">💾 Save Alert Config</button>
+      </div>
+      <button class="btn-setup-alerts" onclick="activateAlerts()" style="margin-top:10px;">🔔 Activate Alert System</button>
+    </div>
+
+    <!-- Alert Log -->
+    <div class="alert-card">
+      <h3>📋 Recent Alerts</h3>
+      <div class="alert-log" id="alert-log">
+        <div class="log-item info">
+          <div>
+            <div style="font-weight:700;">System Ready</div>
+            <div>Configure your phone number and API keys to enable live weather alerts.</div>
+            <div class="log-time">Just now</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn-setup-alerts" onclick="testAlert()" style="margin-top:12px;background:#e65100;">🧪 Send Test Alert</button>
+      <button class="btn-setup-alerts" onclick="clearAlertLog()" style="margin-top:8px;background:#666;">🗑 Clear Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Camera Overlay -->
+<div id="cam-overlay">
+  <video id="cam-video" autoplay playsinline muted></video>
+  <canvas id="cam-canvas" style="display:none"></canvas>
+  <div class="cam-controls">
+    <button class="btn-snap" onclick="snapPhoto()">📸 Capture</button>
+    <button class="btn-close-cam" onclick="closeCamera()">✕ Close</button>
+  </div>
+</div>
+
+<!-- Alert Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <h3 id="modal-title">⚡ Weather Alert</h3>
+    <p id="modal-body">Heavy rain expected in your area.</p>
+    <div class="modal-btns">
+      <button class="btn-modal-secondary" onclick="closeModal()">Dismiss</button>
+      <button class="btn-modal-primary" onclick="goToAlertsPage()">View Details</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <strong>AGRITECH</strong> — Empowering 10,000+ farmers with smart technology & AI-powered insights.<br>
+  <div class="footer-links">
+    <a href="#" onclick="showPage('marketplace');return false;">🛒 Marketplace</a>
+    <a href="#" onclick="showPage('satellite');return false;">🛰 Satellite</a>
+    <a href="#" onclick="showPage('crop');return false;">🔬 Crop Doctor</a>
+    <a href="#" onclick="showPage('alerts');return false;">🌩 Weather Alerts</a>
+  </div>
+  <div style="font-size:.72rem;opacity:.4;margin-top:10px;">© 2026 AgriTech </div>
+</footer>
+
+
+
+</div><!-- /app-main -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js?v=3"></script>
+    <script type="text/javascript">
+  (function(d, t) {
+      var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+      v.onload = function() {
+        window.voiceflow.chat.load({
+          verify: { projectID: '6a0ecfff33cfe6deb8828f15' },
+          url: 'https://general-runtime.voiceflow.com',
+          voice: {
+            url: "https://runtime-api.voiceflow.com"
+          }
+        });
+      }
+      v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs"; v.type = "text/javascript"; s.parentNode.insertBefore(v, s);
+  })(document, 'script');
+</script>
+</body>
+</html>
